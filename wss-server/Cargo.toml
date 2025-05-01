@@ -1,0 +1,10 @@
+[package]
+name = "wss-server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix = "0.13"
+actix-web = "4"
+actix-web-actors = "4"
+tokio = { version = "1", features = ["full"] }
