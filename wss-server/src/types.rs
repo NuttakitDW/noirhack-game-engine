@@ -30,7 +30,7 @@ pub struct Player {
     pub role: Option<Role>,
     pub is_ready: bool,
     pub is_alive: bool,
-    pub addr: Addr<WsClient>, // address of the client's WebSocket actor
+    pub addr: Addr<WsClient>,
 }
 
 /// Struct to track vote mapping (player → target)
