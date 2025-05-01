@@ -1484,6 +1484,8 @@ dependencies = [
  "actix",
  "actix-web",
  "actix-web-actors",
+ "rand",
+ "serde",
  "tokio",
 ]
 
