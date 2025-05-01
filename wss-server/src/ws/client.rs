@@ -2,7 +2,9 @@
 use actix::{Actor, ActorContext, StreamHandler};
 use actix_web_actors::ws;
 
+use crate::message;
 use crate::types::PlayerId;
+use serde::de::Error;
 
 pub struct WsClient {
     pub id: PlayerId,
@@ -25,9 +27,19 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsClient {
             Ok(ws::Message::Ping(payload)) => {
                 ctx.pong(&payload);
             }
-            Ok(ws::Message::Text(text)) => {
-                println!("Received text from {}: {}", self.id, text);
-                // placeholder — forward to message router later
+            Ok(ws::Message::Text(raw)) => {
+                match serde_json::from_str::<message::Incoming>(&raw).and_then(|inc| {
+                    message::to_client_event(inc).map_err(|e| serde_json::Error::custom(e))
+                }) {
+                    Ok(event) => {
+                        println!("Client {} sent event: {:?}", self.id, event);
+                        // TODO: forward to Room once we have it
+                    }
+                    Err(err) => {
+                        println!("JSON error from {}: {err}", self.id);
+                        // you could ctx.text(...) an error frame back
+                    }
+                }
             }
             Ok(ws::Message::Close(reason)) => {
                 println!("Client {} disconnected: {:?}", self.id, reason);

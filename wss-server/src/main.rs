@@ -3,6 +3,7 @@ use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws as actix_ws;
 use uuid;
 mod game;
+mod message;
 mod types;
 mod ws;
 
