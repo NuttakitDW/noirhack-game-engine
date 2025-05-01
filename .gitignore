@@ -1,0 +1,33 @@
+# General
+.DS_Store
+*.log
+*.tmp
+*.swp
+
+# Rust build artifacts
+/target/
+/**/target/
+**/*.rs.bk
+
+# Rust dependency artifacts
+
+# Node/Unity dependencies (if future Unity project exists)
+node_modules/
+*.unity
+*.unityproj
+*.sln
+*.csproj
+*.user
+*.pidb
+*.suo
+*.userprefs
+*.prefs
+*.idea/
+Library/
+Temp/
+Obj/
+Build/
+Logs/
+MemoryCaptures/
+.vscode/
+.vs/
