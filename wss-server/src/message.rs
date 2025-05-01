@@ -1,5 +1,4 @@
 //! src/message.rs
-use crate::message;
 use serde::{Deserialize, Serialize};
 use serde_json;
 
@@ -74,5 +73,62 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             Ok(ClientEvent::Chat { text })
         }
         _ => Ok(ClientEvent::RawUnknown),
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// unit tests for message router
+// These are compiled only when `cargo test` is run.
+#[cfg(test)]
+mod tests {
+    // Bring the parent module’s items into scope
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn join_event_parses() {
+        // JSON identical to what the client sends
+        let frame = json!({
+            "type": 1,
+            "target": "join",
+            "arguments": [ { "name": "Effy" } ]
+        });
+
+        // ➊ deserialize to `Incoming`
+        let inc: Incoming = serde_json::from_value(frame).unwrap();
+
+        // ➋ convert to typed event
+        let evt = crate::message::to_client_event(inc).unwrap();
+
+        // ➌ assert the enum variant and its data
+        assert!(matches!(evt, ClientEvent::Join { name } if name == "Effy"));
+    }
+
+    #[test]
+    fn ready_event_parses() {
+        let frame = json!({
+            "type": 1,
+            "target": "ready",
+            "arguments": [ true ]
+        });
+
+        let inc: Incoming = serde_json::from_value(frame).unwrap();
+        let evt = crate::message::to_client_event(inc).unwrap();
+
+        assert!(matches!(evt, ClientEvent::Ready(true)));
+    }
+
+    #[test]
+    fn unknown_target_is_raw_unknown() {
+        let frame = json!({
+            "type": 1,
+            "target": "foo",
+            "arguments": []
+        });
+
+        let inc: Incoming = serde_json::from_value(frame).unwrap();
+        let evt = crate::message::to_client_event(inc).unwrap();
+
+        assert!(matches!(evt, ClientEvent::RawUnknown));
     }
 }
