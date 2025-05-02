@@ -5,7 +5,7 @@ use actix::Addr;
 use serde_json::json;
 
 use crate::{
-    types::{Phase, Player, PlayerId},
+    types::{Phase, Player, PlayerId, Role},
     ws::client::{ServerText, WsClient},
 };
 
@@ -173,7 +173,94 @@ impl Room {
             return;
         }
         println!("→ nightAction from {}: {} {}", id, action, target);
-        self.pending_night.insert(id.clone(), (action, target));
-        // In the next step we'll check if all actions are in and resolve.
+        if self.pending_night.len() == self.required_night_actions() {
+            self.resolve_night();
+        }
+    }
+
+    fn required_night_actions(&self) -> usize {
+        // 1 Werewolf + 1 Seer if they’re alive
+        let mut n = 0;
+        for p in self.players.values() {
+            if !p.is_alive {
+                continue;
+            }
+            match p.role {
+                Some(Role::Werewolf) => n += 1,
+                Some(Role::Seer) => n += 1,
+                _ => {}
+            }
+        }
+        n
+    }
+
+    fn resolve_night(&mut self) {
+        // 1️⃣  Determine kill target (first "kill" we find)
+        let mut killed: Option<PlayerId> = None;
+        for (actor, (action, target)) in &self.pending_night {
+            if action == "kill" {
+                killed = Some(target.clone());
+            }
+        }
+
+        // 2️⃣  Apply kill
+        if let Some(ref id) = killed {
+            if let Some(victim) = self.players.get_mut(id) {
+                victim.is_alive = false;
+            }
+        }
+
+        // 3️⃣  Send peekResult privately to the seer
+        for (actor, (action, target)) in &self.pending_night {
+            if action == "peek" {
+                if let Some(seer) = self.players.get(actor) {
+                    if let Some(target_player) = self.players.get(target) {
+                        let peek_frame = serde_json::json!({
+                            "type": 1,
+                            "target": "peekResult",
+                            "arguments": [{
+                                "target": target,
+                                "role": format!("{:?}", target_player.role.unwrap())
+                            }]
+                        })
+                        .to_string();
+                        seer.addr.do_send(crate::ws::client::ServerText(peek_frame));
+                    }
+                }
+            }
+        }
+
+        // 4️⃣  Broadcast nightEnd to everyone
+        let night_end = serde_json::json!({
+            "type": 1,
+            "target": "nightEnd",
+            "arguments": [{
+                "killed": killed
+            }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            p.addr
+                .do_send(crate::ws::client::ServerText(night_end.clone()));
+        }
+
+        // 5️⃣  Clear state, flip to Day
+        self.pending_night.clear();
+        self.phase = Phase::Day;
+
+        let day_frame = serde_json::json!({
+            "type": 1,
+            "target": "phase",
+            "arguments": [{
+                "phase": "day",
+                "round": self.round,
+                "duration": 60
+            }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            p.addr
+                .do_send(crate::ws::client::ServerText(day_frame.clone()));
+        }
     }
 }
