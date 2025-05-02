@@ -4,8 +4,12 @@ use actix_web_actors::ws as actix_ws;
 use uuid;
 mod game;
 mod message;
+mod room;
 mod types;
 mod ws;
+
+use room::room::{Room, SharedRoom};
+use std::sync::{Arc, Mutex};
 
 /// WebSocket upgrade handler: every new connection gets a fresh `WsClient`
 /// with a unique player-id (UUID v4).
@@ -17,9 +21,14 @@ async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpRespon
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Bind on all interfaces so friends on LAN can connect.
-    HttpServer::new(|| App::new().route("/ws", web::get().to(ws_handler)))
-        .bind(("0.0.0.0", 8080))?
-        .run()
-        .await
+    let room: SharedRoom = Arc::new(Mutex::new(Room::new()));
+
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(room.clone()))
+            .route("/ws", web::get().to(ws_handler))
+    })
+    .bind(("0.0.0.0", 8080))?
+    .run()
+    .await
 }
