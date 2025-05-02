@@ -54,6 +54,9 @@ impl WsClient {
                         .unwrap()
                         .night_action(self.id.clone(), action, target);
                 }
+                Ok(ClientEvent::Vote { target }) => {
+                    self.room.lock().unwrap().vote(self.id.clone(), target);
+                }
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }

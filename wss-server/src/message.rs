@@ -39,6 +39,7 @@ pub enum ClientEvent {
     Ready(bool),
     Chat { text: String },
     NightAction { action: String, target: String },
+    Vote { target: String },
     RawUnknown,
 }
 
@@ -86,6 +87,16 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             let NightPayload { action, target } = serde_json::from_value(payload.clone())
                 .map_err(|e| format!("bad nightAction payload: {e}"))?;
             Ok(ClientEvent::NightAction { action, target })
+        }
+        "vote" => {
+            let tgt = msg
+                .arguments
+                .get(0)
+                .and_then(|v| v.as_str())
+                .ok_or("vote expects a string target")?;
+            Ok(ClientEvent::Vote {
+                target: tgt.to_string(),
+            })
         }
         _ => Ok(ClientEvent::RawUnknown),
     }

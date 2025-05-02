@@ -18,6 +18,7 @@ pub struct Room {
     round: u32,
     game_started: bool,
     pending_night: HashMap<PlayerId, (String, String)>,
+    votes: HashMap<PlayerId, PlayerId>,
 }
 
 impl Room {
@@ -28,6 +29,7 @@ impl Room {
             round: 0,
             game_started: false,
             pending_night: HashMap::new(),
+            votes: HashMap::new(),
         }
     }
 
@@ -275,6 +277,101 @@ impl Room {
         for p in self.players.values() {
             if let Some(addr) = &p.addr {
                 addr.do_send(crate::ws::client::ServerText(day_frame.clone()));
+            }
+        }
+    }
+
+    fn living_count(&self) -> usize {
+        self.players.values().filter(|p| p.is_alive).count()
+    }
+
+    pub fn vote(&mut self, voter: PlayerId, target: PlayerId) {
+        if self.phase != Phase::Day {
+            return;
+        }
+        if !self.players.get(&voter).map_or(false, |p| p.is_alive) {
+            return;
+        }
+
+        self.votes.insert(voter.clone(), target.clone());
+
+        // live tally broadcast
+        let tally_frame = serde_json::json!({
+            "type": 1,
+            "target": "voteUpdate",
+            "arguments": [ self.votes ]
+        })
+        .to_string();
+        for p in self.players.values() {
+            if let Some(addr) = &p.addr {
+                addr.do_send(ServerText(tally_frame.clone()));
+            }
+        }
+
+        // auto-resolve when everyone alive has voted
+        if self.votes.len() == self.living_count() {
+            self.resolve_day();
+        }
+    }
+
+    fn resolve_day(&mut self) {
+        // 1. Count votes
+        let mut counts: HashMap<&PlayerId, usize> = HashMap::new();
+        for tgt in self.votes.values() {
+            *counts.entry(tgt).or_default() += 1;
+        }
+        // 2. Find highest vote (simple max, ties = no lynch)
+        let (lynched, _max) = counts
+            .iter()
+            .max_by_key(|(_, c)| *c)
+            .map(|(id, c)| ((*id).clone(), *c))
+            .unwrap_or((String::new(), 0));
+
+        let lynch_opt = if _max > 0 && counts.values().filter(|&&c| c == _max).count() == 1 {
+            // unique top
+            Some(lynched.clone())
+        } else {
+            None
+        };
+
+        if let Some(id) = &lynch_opt {
+            if let Some(p) = self.players.get_mut(id) {
+                p.is_alive = false;
+            }
+        }
+
+        // 3. Broadcast dayEnd
+        let frame = serde_json::json!({
+            "type": 1,
+            "target": "dayEnd",
+            "arguments": [{ "lynched": lynch_opt }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            if let Some(addr) = &p.addr {
+                addr.do_send(ServerText(frame.clone()));
+            }
+        }
+
+        // 4. Prepare for next night
+        self.votes.clear();
+        self.pending_night.clear();
+        self.phase = Phase::Night;
+        self.round += 1;
+
+        let night_frame = serde_json::json!({
+            "type": 1,
+            "target": "phase",
+            "arguments": [{
+                "phase":"night",
+                "round": self.round,
+                "duration": 30
+            }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            if let Some(addr) = &p.addr {
+                addr.do_send(ServerText(night_frame.clone()));
             }
         }
     }
