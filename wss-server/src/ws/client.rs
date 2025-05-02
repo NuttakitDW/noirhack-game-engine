@@ -1,4 +1,3 @@
-// src/ws/client.rs
 use actix::AsyncContext;
 use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
 use actix_web_actors::ws;
@@ -7,11 +6,10 @@ use crate::{room::room::SharedRoom, types::PlayerId};
 
 pub struct WsClient {
     pub id: PlayerId,
-    room: SharedRoom, // NEW – store the shared room handle
+    room: SharedRoom,
 }
 
 impl WsClient {
-    // Now takes the room handle
     pub fn new(id: PlayerId, room: SharedRoom) -> Self {
         Self { id, room }
     }
