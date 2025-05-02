@@ -5,7 +5,7 @@ use actix::Addr;
 use serde_json::{json, Value};
 
 use crate::{
-    types::{Phase, Player, PlayerId, Role},
+    types::{Phase, Player, PlayerId, Role, VoteMap},
     ws::client::{ServerText, WsClient},
 };
 
@@ -17,7 +17,7 @@ pub struct Room {
     round: u32,
     game_started: bool,
     pending_night: HashMap<PlayerId, (String, String)>,
-    votes: HashMap<PlayerId, PlayerId>,
+    votes: VoteMap,
 }
 
 impl Room {
@@ -191,7 +191,7 @@ impl Room {
 
     fn resolve_night(&mut self) {
         let mut killed: Option<PlayerId> = None;
-        for (actor, (action, target)) in &self.pending_night {
+        for (action, target) in self.pending_night.values() {
             if action == "kill" {
                 killed = Some(target.clone());
             }
