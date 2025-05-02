@@ -9,7 +9,6 @@ use crate::{
     ws::client::{ServerText, WsClient},
 };
 
-/// Shared, thread-safe handle to your single Room
 pub type SharedRoom = Arc<Mutex<Room>>;
 
 pub struct Room {
@@ -33,11 +32,9 @@ impl Room {
         }
     }
 
-    /// 1️⃣ Add a player into the room
     pub fn add_player(&mut self, id: PlayerId, name: String, addr: Addr<WsClient>) {
         println!("→ join {} ({})", id, name);
 
-        // Insert or update the Player entry
         self.players.insert(
             id.clone(),
             Player {
@@ -50,14 +47,10 @@ impl Room {
             },
         );
 
-        // 2️⃣ Broadcast the updated lobby state
         self.broadcast_lobby();
     }
 
-    /// Send everyone the current list of players & ready flags
     fn broadcast_lobby(&self) {
-        // Build a JSON string matching your protocol:
-        // { type:1, target:"lobby", arguments:[{ players: [ {id,name,ready}, … ] }] }
         let snapshot = json!({
             "type": 1,
             "target": "lobby",
@@ -73,7 +66,6 @@ impl Room {
         })
         .to_string();
 
-        // Send to each connected client actor
         for player in self.players.values() {
             if let Some(addr) = &player.addr {
                 addr.do_send(ServerText(snapshot.clone()));
@@ -96,7 +88,6 @@ impl Room {
             return;
         }
 
-        // Count ready players
         let ready_count = self.players.values().filter(|p| p.is_ready).count();
         if ready_count == 4 {
             self.game_started = true;
@@ -107,20 +98,16 @@ impl Room {
     fn start_game(&mut self) {
         use crate::game::role::assign_roles;
 
-        // 1️⃣ Collect player IDs
         let ids: Vec<_> = self.players.keys().cloned().collect();
 
-        // 2️⃣ Assign roles
         let role_map = assign_roles(&ids);
 
-        // 3️⃣ Update each Player struct
         for (id, role) in &role_map {
             if let Some(player) = self.players.get_mut(id) {
                 player.role = Some(*role);
             }
         }
 
-        // 4️⃣ Send private role to each player
         for (id, role) in &role_map {
             let payload = serde_json::json!({ "role": format!("{role:?}") });
             let frame = serde_json::json!({
@@ -137,7 +124,6 @@ impl Room {
             }
         }
 
-        // 5️⃣ Broadcast gameStart with full players list
         let players_info: Vec<_> = self
             .players
             .values()
@@ -155,7 +141,6 @@ impl Room {
             }
         }
 
-        // 6️⃣ Broadcast initial phase: night round 1
         self.phase = Phase::Night;
         self.round = 1;
         let phase_frame = serde_json::json!({
@@ -182,17 +167,14 @@ impl Room {
 
         println!("→ nightAction from {}: {} {}", id, action, target);
 
-        // 🔸 store the action
         self.pending_night.insert(id.clone(), (action, target));
 
-        // 🔸 now evaluate
         if self.pending_night.len() == self.required_night_actions() {
             self.resolve_night();
         }
     }
 
     fn required_night_actions(&self) -> usize {
-        // 1 Werewolf + 1 Seer if they’re alive
         let mut n = 0;
         for p in self.players.values() {
             if !p.is_alive {
@@ -208,7 +190,6 @@ impl Room {
     }
 
     fn resolve_night(&mut self) {
-        // 1️⃣  Determine kill target (first "kill" we find)
         let mut killed: Option<PlayerId> = None;
         for (actor, (action, target)) in &self.pending_night {
             if action == "kill" {
@@ -216,14 +197,12 @@ impl Room {
             }
         }
 
-        // 2️⃣  Apply kill
         if let Some(ref id) = killed {
             if let Some(victim) = self.players.get_mut(id) {
                 victim.is_alive = false;
             }
         }
 
-        // 3️⃣  Send peekResult privately to the seer
         for (actor, (action, target)) in &self.pending_night {
             if action == "peek" {
                 if let Some(seer) = self.players.get(actor) {
@@ -245,7 +224,6 @@ impl Room {
             }
         }
 
-        // 4️⃣  Broadcast nightEnd to everyone
         let night_end = serde_json::json!({
             "type": 1,
             "target": "nightEnd",
@@ -260,7 +238,6 @@ impl Room {
             }
         }
 
-        // 5️⃣  Clear state, flip to Day
         self.pending_night.clear();
         self.phase = Phase::Day;
 
@@ -295,7 +272,6 @@ impl Room {
 
         self.votes.insert(voter.clone(), target.clone());
 
-        // live tally broadcast
         let tally_frame = serde_json::json!({
             "type": 1,
             "target": "voteUpdate",
@@ -308,19 +284,16 @@ impl Room {
             }
         }
 
-        // auto-resolve when everyone alive has voted
         if self.votes.len() == self.living_count() {
             self.resolve_day();
         }
     }
 
     fn resolve_day(&mut self) {
-        // 1. Count votes
         let mut counts: HashMap<&PlayerId, usize> = HashMap::new();
         for tgt in self.votes.values() {
             *counts.entry(tgt).or_default() += 1;
         }
-        // 2. Find highest vote (simple max, ties = no lynch)
         let (lynched, _max) = counts
             .iter()
             .max_by_key(|(_, c)| *c)
@@ -328,7 +301,6 @@ impl Room {
             .unwrap_or((String::new(), 0));
 
         let lynch_opt = if _max > 0 && counts.values().filter(|&&c| c == _max).count() == 1 {
-            // unique top
             Some(lynched.clone())
         } else {
             None
@@ -340,7 +312,6 @@ impl Room {
             }
         }
 
-        // 3. Broadcast dayEnd
         let frame = serde_json::json!({
             "type": 1,
             "target": "dayEnd",
@@ -353,7 +324,6 @@ impl Room {
             }
         }
 
-        // 4. Prepare for next night
         self.votes.clear();
         self.pending_night.clear();
         self.phase = Phase::Night;
@@ -374,5 +344,80 @@ impl Room {
                 addr.do_send(ServerText(night_frame.clone()));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod day_tests {
+    use super::*;
+    use crate::types::{Phase, Player, Role};
+
+    fn make_player(id: &str, role: Role) -> Player {
+        Player {
+            id: id.to_string(),
+            name: id.to_string(),
+            role: Some(role),
+            is_ready: true,
+            is_alive: true,
+            addr: None,
+        }
+    }
+
+    #[test]
+    fn majority_lynch_kills_player_and_flips_to_night() {
+        let mut room = Room::new();
+        room.players
+            .insert("wolf".into(), make_player("wolf", Role::Werewolf));
+        room.players
+            .insert("seer".into(), make_player("seer", Role::Seer));
+        room.players
+            .insert("v1".into(), make_player("v1", Role::Villager));
+        room.players
+            .insert("v2".into(), make_player("v2", Role::Villager));
+
+        room.phase = Phase::Day;
+        room.round = 1;
+
+        room.vote("wolf".into(), "seer".into());
+        room.vote("v1".into(), "seer".into());
+        room.vote("seer".into(), "wolf".into());
+
+        assert!(room.players["seer"].is_alive);
+        assert!(room.players["wolf"].is_alive);
+
+        assert_eq!(room.phase, Phase::Day);
+
+        room.vote("v2".into(), "seer".into());
+
+        assert!(!room.players["seer"].is_alive, "seer should be lynched");
+        assert_eq!(room.phase, Phase::Night, "phase flips to night");
+        assert_eq!(room.round, 2, "round incremented");
+    }
+
+    #[test]
+    fn tie_vote_keeps_everyone_alive_and_flips_to_night() {
+        let mut room = Room::new();
+        room.players
+            .insert("wolf".into(), make_player("wolf", Role::Werewolf));
+        room.players
+            .insert("seer".into(), make_player("seer", Role::Seer));
+        room.players
+            .insert("v1".into(), make_player("v1", Role::Villager));
+        room.players
+            .insert("v2".into(), make_player("v2", Role::Villager));
+
+        room.phase = Phase::Day;
+        room.round = 1;
+
+        room.vote("wolf".into(), "seer".into());
+        room.vote("v1".into(), "seer".into());
+        room.vote("seer".into(), "wolf".into());
+        room.vote("v2".into(), "wolf".into());
+
+        assert!(room.players["seer"].is_alive);
+        assert!(room.players["wolf"].is_alive);
+
+        assert_eq!(room.phase, Phase::Night);
+        assert_eq!(room.round, 2);
     }
 }
