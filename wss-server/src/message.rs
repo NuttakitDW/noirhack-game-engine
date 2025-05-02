@@ -38,7 +38,8 @@ pub enum ClientEvent {
     Join { name: String },
     Ready(bool),
     Chat { text: String },
-    RawUnknown, // fallback for unrecognised targets
+    NightAction { action: String, target: String },
+    RawUnknown,
 }
 
 /// Parse `Incoming` into typed `ClientEvent`
@@ -71,6 +72,20 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             let ChatPayload { text } = serde_json::from_value(payload.clone())
                 .map_err(|e| format!("bad chat payload: {e}"))?;
             Ok(ClientEvent::Chat { text })
+        }
+        "nightAction" => {
+            let payload = msg
+                .arguments
+                .get(0)
+                .ok_or("nightAction expects 1 argument")?;
+            #[derive(Deserialize)]
+            struct NightPayload {
+                action: String,
+                target: String,
+            }
+            let NightPayload { action, target } = serde_json::from_value(payload.clone())
+                .map_err(|e| format!("bad nightAction payload: {e}"))?;
+            Ok(ClientEvent::NightAction { action, target })
         }
         _ => Ok(ClientEvent::RawUnknown),
     }
