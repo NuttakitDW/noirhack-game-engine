@@ -1,5 +1,3 @@
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
-use actix_web_actors::ws as actix_ws;
 use uuid;
 mod game;
 mod message;
@@ -8,6 +6,8 @@ mod types;
 mod ws;
 
 use actix_web::web::Data;
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web_actors::ws as actix_ws;
 use room::room::{Room, SharedRoom};
 use std::sync::{Arc, Mutex};
 use ws::client::WsClient;
