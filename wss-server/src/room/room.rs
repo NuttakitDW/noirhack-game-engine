@@ -16,6 +16,7 @@ pub struct Room {
     players: HashMap<PlayerId, Player>,
     phase: Phase,
     round: u32,
+    game_started: bool,
 }
 
 impl Room {
@@ -24,6 +25,7 @@ impl Room {
             players: HashMap::new(),
             phase: Phase::Lobby,
             round: 0,
+            game_started: false,
         }
     }
 
@@ -78,8 +80,88 @@ impl Room {
             player.is_ready = ready;
             println!("→ ready toggle {} = {}", id, ready);
             self.broadcast_lobby();
+            self.try_start();
         } else {
             println!("→ tried to set_ready for unknown id {}", id);
+        }
+    }
+    fn try_start(&mut self) {
+        if self.game_started {
+            return;
+        }
+
+        // Count ready players
+        let ready_count = self.players.values().filter(|p| p.is_ready).count();
+        if ready_count == 4 {
+            self.game_started = true;
+            self.start_game();
+        }
+    }
+
+    fn start_game(&mut self) {
+        use crate::game::role::assign_roles;
+
+        // 1️⃣ Collect player IDs
+        let ids: Vec<_> = self.players.keys().cloned().collect();
+
+        // 2️⃣ Assign roles
+        let role_map = assign_roles(&ids);
+
+        // 3️⃣ Update each Player struct
+        for (id, role) in &role_map {
+            if let Some(player) = self.players.get_mut(id) {
+                player.role = Some(*role);
+            }
+        }
+
+        // 4️⃣ Send private role to each player
+        for (id, role) in &role_map {
+            let payload = serde_json::json!({ "role": format!("{role:?}") });
+            let frame = serde_json::json!({
+                "type": 1,
+                "target": "role",
+                "arguments": [ payload ]
+            })
+            .to_string();
+
+            if let Some(player) = self.players.get(id) {
+                player.addr.do_send(crate::ws::client::ServerText(frame));
+            }
+        }
+
+        // 5️⃣ Broadcast gameStart with full players list
+        let players_info: Vec<_> = self
+            .players
+            .values()
+            .map(|p| serde_json::json!({ "id": p.id, "name": p.name }))
+            .collect();
+        let start_frame = serde_json::json!({
+            "type": 1,
+            "target": "gameStart",
+            "arguments": [{ "players": players_info }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            p.addr
+                .do_send(crate::ws::client::ServerText(start_frame.clone()));
+        }
+
+        // 6️⃣ Broadcast initial phase: night round 1
+        self.phase = Phase::Night;
+        self.round = 1;
+        let phase_frame = serde_json::json!({
+            "type": 1,
+            "target": "phase",
+            "arguments": [{
+                "phase": "night",
+                "round": self.round,
+                "duration": 30
+            }]
+        })
+        .to_string();
+        for p in self.players.values() {
+            p.addr
+                .do_send(crate::ws::client::ServerText(phase_frame.clone()));
         }
     }
 }
