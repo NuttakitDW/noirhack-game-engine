@@ -398,7 +398,7 @@ impl Room {
     }
 
     pub fn chat(&self, id: PlayerId, text: String) {
-        if self.phase != Phase::Day {
+        if self.phase == Phase::Night {
             return;
         }
 
