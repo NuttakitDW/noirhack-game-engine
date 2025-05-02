@@ -476,3 +476,59 @@ mod day_tests {
         assert_eq!(room.round, 2);
     }
 }
+
+#[cfg(test)]
+mod win_tests {
+    use super::*;
+    use crate::types::{Player, Role};
+
+    fn mk_player(id: &str, role: Role, alive: bool) -> Player {
+        Player {
+            id: id.into(),
+            name: id.into(),
+            role: Some(role),
+            is_ready: true,
+            is_alive: alive,
+            addr: None, // no socket needed in unit tests
+        }
+    }
+
+    #[test]
+    fn villagers_win_when_wolf_dead() {
+        let mut room = Room::new();
+        room.players
+            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, false)); // dead wolf
+        room.players
+            .insert("seer".into(), mk_player("seer", Role::Seer, true));
+        room.players
+            .insert("v1".into(), mk_player("v1", Role::Villager, true));
+
+        assert_eq!(room.check_win(), Some("villagers"));
+    }
+
+    #[test]
+    fn wolves_win_when_no_villagers_alive() {
+        let mut room = Room::new();
+        room.players
+            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, true));
+        room.players
+            .insert("seer".into(), mk_player("seer", Role::Seer, false));
+        room.players
+            .insert("v1".into(), mk_player("v1", Role::Villager, false));
+
+        assert_eq!(room.check_win(), Some("werewolves"));
+    }
+
+    #[test]
+    fn check_win_returns_none_when_game_continues() {
+        let mut room = Room::new();
+        room.players
+            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, true));
+        room.players
+            .insert("seer".into(), mk_player("seer", Role::Seer, true));
+        room.players
+            .insert("v1".into(), mk_player("v1", Role::Villager, true));
+
+        assert_eq!(room.check_win(), None);
+    }
+}
