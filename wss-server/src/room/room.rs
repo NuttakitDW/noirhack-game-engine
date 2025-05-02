@@ -72,4 +72,14 @@ impl Room {
             player.addr.do_send(ServerText(snapshot.clone()));
         }
     }
+
+    pub fn set_ready(&mut self, id: PlayerId, ready: bool) {
+        if let Some(player) = self.players.get_mut(&id) {
+            player.is_ready = ready;
+            println!("→ ready toggle {} = {}", id, ready);
+            self.broadcast_lobby();
+        } else {
+            println!("→ tried to set_ready for unknown id {}", id);
+        }
+    }
 }
