@@ -30,7 +30,7 @@ pub struct Player {
     pub role: Option<Role>,
     pub is_ready: bool,
     pub is_alive: bool,
-    pub addr: Addr<WsClient>,
+    pub addr: Option<Addr<WsClient>>,
 }
 
 /// Struct to track vote mapping (player → target)

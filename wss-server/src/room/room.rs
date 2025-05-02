@@ -44,7 +44,7 @@ impl Room {
                 role: None,
                 is_ready: false,
                 is_alive: true,
-                addr,
+                addr: Some(addr),
             },
         );
 
@@ -73,7 +73,9 @@ impl Room {
 
         // Send to each connected client actor
         for player in self.players.values() {
-            player.addr.do_send(ServerText(snapshot.clone()));
+            if let Some(addr) = &player.addr {
+                addr.do_send(ServerText(snapshot.clone()));
+            }
         }
     }
 
@@ -127,7 +129,9 @@ impl Room {
             .to_string();
 
             if let Some(player) = self.players.get(id) {
-                player.addr.do_send(crate::ws::client::ServerText(frame));
+                if let Some(addr) = &player.addr {
+                    addr.do_send(ServerText(frame.clone()));
+                }
             }
         }
 
@@ -144,8 +148,9 @@ impl Room {
         })
         .to_string();
         for p in self.players.values() {
-            p.addr
-                .do_send(crate::ws::client::ServerText(start_frame.clone()));
+            if let Some(addr) = &p.addr {
+                addr.do_send(crate::ws::client::ServerText(start_frame.clone()));
+            }
         }
 
         // 6️⃣ Broadcast initial phase: night round 1
@@ -162,17 +167,23 @@ impl Room {
         })
         .to_string();
         for p in self.players.values() {
-            p.addr
-                .do_send(crate::ws::client::ServerText(phase_frame.clone()));
+            if let Some(addr) = &p.addr {
+                addr.do_send(crate::ws::client::ServerText(phase_frame.clone()));
+            }
         }
     }
 
     pub fn night_action(&mut self, id: PlayerId, action: String, target: String) {
-        // Only accept during Night phase
         if self.phase != Phase::Night {
             return;
         }
+
         println!("→ nightAction from {}: {} {}", id, action, target);
+
+        // 🔸 store the action
+        self.pending_night.insert(id.clone(), (action, target));
+
+        // 🔸 now evaluate
         if self.pending_night.len() == self.required_night_actions() {
             self.resolve_night();
         }
@@ -224,7 +235,9 @@ impl Room {
                             }]
                         })
                         .to_string();
-                        seer.addr.do_send(crate::ws::client::ServerText(peek_frame));
+                        if let Some(addr) = &seer.addr {
+                            addr.do_send(crate::ws::client::ServerText(peek_frame));
+                        }
                     }
                 }
             }
@@ -240,8 +253,9 @@ impl Room {
         })
         .to_string();
         for p in self.players.values() {
-            p.addr
-                .do_send(crate::ws::client::ServerText(night_end.clone()));
+            if let Some(addr) = &p.addr {
+                addr.do_send(crate::ws::client::ServerText(night_end.clone()));
+            }
         }
 
         // 5️⃣  Clear state, flip to Day
@@ -259,8 +273,9 @@ impl Room {
         })
         .to_string();
         for p in self.players.values() {
-            p.addr
-                .do_send(crate::ws::client::ServerText(day_frame.clone()));
+            if let Some(addr) = &p.addr {
+                addr.do_send(crate::ws::client::ServerText(day_frame.clone()));
+            }
         }
     }
 }
