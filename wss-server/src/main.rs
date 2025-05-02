@@ -1,4 +1,3 @@
-//! src/main.rs
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws as actix_ws;
 use uuid;
@@ -16,10 +15,10 @@ use ws::client::WsClient;
 async fn ws_handler(
     req: HttpRequest,
     stream: web::Payload,
-    room: Data<SharedRoom>, // ① pull in the room
+    room: Data<SharedRoom>,
 ) -> Result<HttpResponse, Error> {
     let id = uuid::Uuid::new_v4().to_string();
-    let client = WsClient::new(id, room.get_ref().clone()); // ② pass it in
+    let client = WsClient::new(id, room.get_ref().clone());
     actix_ws::start(client, &req, stream)
 }
 
