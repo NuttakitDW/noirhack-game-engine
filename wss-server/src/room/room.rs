@@ -17,6 +17,7 @@ pub struct Room {
     phase: Phase,
     round: u32,
     game_started: bool,
+    pending_night: HashMap<PlayerId, (String, String)>,
 }
 
 impl Room {
@@ -26,6 +27,7 @@ impl Room {
             phase: Phase::Lobby,
             round: 0,
             game_started: false,
+            pending_night: HashMap::new(),
         }
     }
 
@@ -163,5 +165,15 @@ impl Room {
             p.addr
                 .do_send(crate::ws::client::ServerText(phase_frame.clone()));
         }
+    }
+
+    pub fn night_action(&mut self, id: PlayerId, action: String, target: String) {
+        // Only accept during Night phase
+        if self.phase != Phase::Night {
+            return;
+        }
+        println!("→ nightAction from {}: {} {}", id, action, target);
+        self.pending_night.insert(id.clone(), (action, target));
+        // In the next step we'll check if all actions are in and resolve.
     }
 }

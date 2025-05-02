@@ -48,6 +48,12 @@ impl WsClient {
                 Ok(ClientEvent::Ready(flag)) => {
                     self.room.lock().unwrap().set_ready(self.id.clone(), flag);
                 }
+                Ok(ClientEvent::NightAction { action, target }) => {
+                    self.room
+                        .lock()
+                        .unwrap()
+                        .night_action(self.id.clone(), action, target);
+                }
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }
