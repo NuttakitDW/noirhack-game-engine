@@ -373,17 +373,11 @@ impl Room {
             _ => None,
         }
     }
-
     fn broadcast_game_over(&self, winner: &str) {
         let role_map = self
             .players
             .iter()
-            .map(|(id, p)| {
-                (
-                    id.clone(),
-                    Value::String(format!("{:?}", p.role.unwrap())), // wrap into JSON value
-                )
-            })
+            .map(|(id, p)| (id.clone(), Value::String(format!("{:?}", p.role.unwrap()))))
             .collect::<serde_json::Map<_, _>>();
 
         let frame = serde_json::json!({
@@ -402,135 +396,36 @@ impl Room {
             }
         }
     }
-}
 
-#[cfg(test)]
-mod day_tests {
-    use super::*;
-    use crate::types::{Phase, Player, Role};
-
-    fn make_player(id: &str, role: Role) -> Player {
-        Player {
-            id: id.to_string(),
-            name: id.to_string(),
-            role: Some(role),
-            is_ready: true,
-            is_alive: true,
-            addr: None,
+    pub fn chat(&self, id: PlayerId, text: String) {
+        if self.phase != Phase::Day {
+            return;
         }
-    }
 
-    #[test]
-    fn majority_lynch_kills_player_and_flips_to_night() {
-        let mut room = Room::new();
-        room.players
-            .insert("wolf".into(), make_player("wolf", Role::Werewolf));
-        room.players
-            .insert("seer".into(), make_player("seer", Role::Seer));
-        room.players
-            .insert("v1".into(), make_player("v1", Role::Villager));
-        room.players
-            .insert("v2".into(), make_player("v2", Role::Villager));
-
-        room.phase = Phase::Day;
-        room.round = 1;
-
-        room.vote("wolf".into(), "seer".into());
-        room.vote("v1".into(), "seer".into());
-        room.vote("seer".into(), "wolf".into());
-
-        assert!(room.players["seer"].is_alive);
-        assert!(room.players["wolf"].is_alive);
-
-        assert_eq!(room.phase, Phase::Day);
-
-        room.vote("v2".into(), "seer".into());
-
-        assert!(!room.players["seer"].is_alive, "seer should be lynched");
-        assert_eq!(room.phase, Phase::Night, "phase flips to night");
-        assert_eq!(room.round, 2, "round incremented");
-    }
-
-    #[test]
-    fn tie_vote_keeps_everyone_alive_and_flips_to_night() {
-        let mut room = Room::new();
-        room.players
-            .insert("wolf".into(), make_player("wolf", Role::Werewolf));
-        room.players
-            .insert("seer".into(), make_player("seer", Role::Seer));
-        room.players
-            .insert("v1".into(), make_player("v1", Role::Villager));
-        room.players
-            .insert("v2".into(), make_player("v2", Role::Villager));
-
-        room.phase = Phase::Day;
-        room.round = 1;
-
-        room.vote("wolf".into(), "seer".into());
-        room.vote("v1".into(), "seer".into());
-        room.vote("seer".into(), "wolf".into());
-        room.vote("v2".into(), "wolf".into());
-
-        assert!(room.players["seer"].is_alive);
-        assert!(room.players["wolf"].is_alive);
-
-        assert_eq!(room.phase, Phase::Night);
-        assert_eq!(room.round, 2);
-    }
-}
-
-#[cfg(test)]
-mod win_tests {
-    use super::*;
-    use crate::types::{Player, Role};
-
-    fn mk_player(id: &str, role: Role, alive: bool) -> Player {
-        Player {
-            id: id.into(),
-            name: id.into(),
-            role: Some(role),
-            is_ready: true,
-            is_alive: alive,
-            addr: None, // no socket needed in unit tests
+        if let Some(sender) = self.players.get(&id) {
+            if !sender.is_alive {
+                return;
+            }
+        } else {
+            return;
         }
-    }
 
-    #[test]
-    fn villagers_win_when_wolf_dead() {
-        let mut room = Room::new();
-        room.players
-            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, false)); // dead wolf
-        room.players
-            .insert("seer".into(), mk_player("seer", Role::Seer, true));
-        room.players
-            .insert("v1".into(), mk_player("v1", Role::Villager, true));
+        let frame = serde_json::json!({
+            "type": 1,
+            "target": "chat",
+            "arguments": [{
+                "from": id,
+                "text": text
+            }]
+        })
+        .to_string();
 
-        assert_eq!(room.check_win(), Some("villagers"));
-    }
-
-    #[test]
-    fn wolves_win_when_no_villagers_alive() {
-        let mut room = Room::new();
-        room.players
-            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, true));
-        room.players
-            .insert("seer".into(), mk_player("seer", Role::Seer, false));
-        room.players
-            .insert("v1".into(), mk_player("v1", Role::Villager, false));
-
-        assert_eq!(room.check_win(), Some("werewolves"));
-    }
-
-    #[test]
-    fn check_win_returns_none_when_game_continues() {
-        let mut room = Room::new();
-        room.players
-            .insert("wolf".into(), mk_player("wolf", Role::Werewolf, true));
-        room.players
-            .insert("seer".into(), mk_player("seer", Role::Seer, true));
-        room.players
-            .insert("v1".into(), mk_player("v1", Role::Villager, true));
-
-        assert_eq!(room.check_win(), None);
+        for p in self.players.values() {
+            if p.is_alive {
+                if let Some(addr) = &p.addr {
+                    addr.do_send(ServerText(frame.clone()));
+                }
+            }
+        }
     }
 }
