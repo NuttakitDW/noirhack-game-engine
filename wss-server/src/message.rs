@@ -58,11 +58,11 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             Ok(ClientEvent::Ready(flag))
         }
         "chat" => {
-            let payload = msg.arguments.get(0).ok_or("chat expects 1 argument")?;
             #[derive(Deserialize)]
             struct ChatPayload {
                 text: String,
             }
+            let payload = msg.arguments.get(0).ok_or("chat expects 1 argument")?;
             let ChatPayload { text } = serde_json::from_value(payload.clone())
                 .map_err(|e| format!("bad chat payload: {e}"))?;
             Ok(ClientEvent::Chat { text })
