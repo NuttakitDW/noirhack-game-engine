@@ -1,30 +1,11 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json;
 
 #[derive(Debug, Deserialize)]
 pub struct Incoming {
     #[serde(rename = "type")]
-    pub frame_type: u8,
     pub target: String,
     pub arguments: Vec<serde_json::Value>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Outgoing<'a, T: Serialize> {
-    #[serde(rename = "type")]
-    pub frame_type: u8,
-    pub target: &'a str,
-    pub arguments: [T; 1],
-}
-
-impl<'a, T: Serialize> Outgoing<'a, T> {
-    pub fn new(target: &'a str, payload: T) -> Self {
-        Self {
-            frame_type: 1,
-            target,
-            arguments: [payload],
-        }
-    }
 }
 
 #[derive(Debug)]
