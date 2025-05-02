@@ -2,18 +2,18 @@
 use actix::{Actor, ActorContext, StreamHandler};
 use actix_web_actors::ws;
 
-use crate::message;
-use crate::types::PlayerId;
+use crate::{message, room::room::SharedRoom, types::PlayerId};
 use serde::de::Error;
 
 pub struct WsClient {
     pub id: PlayerId,
-    pub name: Option<String>,
+    room: SharedRoom, // NEW – store the shared room handle
 }
 
 impl WsClient {
-    pub fn new(id: PlayerId) -> Self {
-        Self { id, name: None }
+    // Now takes the room handle
+    pub fn new(id: PlayerId, room: SharedRoom) -> Self {
+        Self { id, room }
     }
 }
 

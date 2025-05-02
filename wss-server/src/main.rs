@@ -8,14 +8,18 @@ mod room;
 mod types;
 mod ws;
 
+use actix_web::web::Data;
 use room::room::{Room, SharedRoom};
 use std::sync::{Arc, Mutex};
+use ws::client::WsClient;
 
-/// WebSocket upgrade handler: every new connection gets a fresh `WsClient`
-/// with a unique player-id (UUID v4).
-async fn ws_handler(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
+async fn ws_handler(
+    req: HttpRequest,
+    stream: web::Payload,
+    room: Data<SharedRoom>, // ① pull in the room
+) -> Result<HttpResponse, Error> {
     let id = uuid::Uuid::new_v4().to_string();
-    let client = ws::client::WsClient::new(id);
+    let client = WsClient::new(id, room.get_ref().clone()); // ② pass it in
     actix_ws::start(client, &req, stream)
 }
 
