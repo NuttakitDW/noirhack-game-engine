@@ -19,7 +19,7 @@ pub enum Phase {
     Lobby,
     Night,
     Day,
-    Over,
+    GameOver,
 }
 
 /// Struct to hold player state

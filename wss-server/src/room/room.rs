@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use actix::Addr;
-use serde_json::json;
+use serde_json::{json, Value};
 
 use crate::{
     types::{Phase, Player, PlayerId, Role},
@@ -256,6 +256,11 @@ impl Room {
                 addr.do_send(crate::ws::client::ServerText(day_frame.clone()));
             }
         }
+        if let Some(winner) = self.check_win() {
+            self.broadcast_game_over(winner);
+            self.phase = Phase::GameOver;
+            return;
+        }
     }
 
     fn living_count(&self) -> usize {
@@ -342,6 +347,56 @@ impl Room {
         for p in self.players.values() {
             if let Some(addr) = &p.addr {
                 addr.do_send(ServerText(night_frame.clone()));
+            }
+        }
+        if let Some(winner) = self.check_win() {
+            self.broadcast_game_over(winner);
+            self.phase = Phase::GameOver;
+            return;
+        }
+    }
+
+    fn check_win(&self) -> Option<&'static str> {
+        let wolf_alive = self
+            .players
+            .values()
+            .any(|p| p.is_alive && p.role == Some(Role::Werewolf));
+        let villagers_alive = self
+            .players
+            .values()
+            .any(|p| p.is_alive && p.role != Some(Role::Werewolf));
+        match (wolf_alive, villagers_alive) {
+            (false, true) => Some("villagers"),
+            (true, false) => Some("werewolves"),
+            _ => None,
+        }
+    }
+
+    fn broadcast_game_over(&self, winner: &str) {
+        let role_map = self
+            .players
+            .iter()
+            .map(|(id, p)| {
+                (
+                    id.clone(),
+                    Value::String(format!("{:?}", p.role.unwrap())), // wrap into JSON value
+                )
+            })
+            .collect::<serde_json::Map<_, _>>();
+
+        let frame = serde_json::json!({
+            "type": 1,
+            "target": "gameOver",
+            "arguments": [{
+                "winner": winner,
+                "roles":  role_map
+            }]
+        })
+        .to_string();
+
+        for p in self.players.values() {
+            if let Some(addr) = &p.addr {
+                addr.do_send(ServerText(frame.clone()));
             }
         }
     }
