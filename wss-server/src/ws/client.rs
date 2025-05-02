@@ -5,6 +5,9 @@ use actix_web_actors::ws;
 use crate::{message, room::room::SharedRoom, types::PlayerId};
 use serde::de::Error;
 
+use actix::Handler;
+use actix::Message;
+
 pub struct WsClient {
     pub id: PlayerId,
     room: SharedRoom, // NEW – store the shared room handle
@@ -14,6 +17,18 @@ impl WsClient {
     // Now takes the room handle
     pub fn new(id: PlayerId, room: SharedRoom) -> Self {
         Self { id, room }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct ServerText(pub String);
+
+impl Handler<ServerText> for WsClient {
+    type Result = ();
+
+    fn handle(&mut self, msg: ServerText, ctx: &mut Self::Context) {
+        ctx.text(msg.0);
     }
 }
 
