@@ -22,14 +22,12 @@ async fn night_phase_flow() {
     let (port, srv) = spawn_server().await;
     let url = Url::parse(&format!("ws://127.0.0.1:{port}/ws")).unwrap();
 
-    // connect 4 clients
     let mut clients = futures::future::join_all((0..4).map(|_| async {
         let (ws, _) = connect_async(url.clone()).await.unwrap();
         ws
     }))
     .await;
 
-    // join + ready
     for (i, sock) in clients.iter_mut().enumerate() {
         sock.send(Message::Text(format!(
             r#"{{"type":1,"target":"join","arguments":[{{"name":"P{i}"}}]}}"#
@@ -53,7 +51,6 @@ async fn night_phase_flow() {
             if let Ok(Some(Ok(Message::Text(txt)))) =
                 timeout(Duration::from_millis(100), sock.next()).await
             {
-                // capture UUID ↔ name mapping from any lobby snapshot
                 if txt.contains(r#""target":"lobby""#) {
                     let v: serde_json::Value = serde_json::from_str(&txt).unwrap();
                     if let Some(players) = v["arguments"][0]["players"].as_array() {
@@ -64,7 +61,6 @@ async fn night_phase_flow() {
                         }
                     }
                 }
-                // discover which index is wolf / seer
                 if txt.contains(r#""target":"role""#) {
                     if txt.contains("Werewolf") {
                         wolf_idx = Some(idx);
