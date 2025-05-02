@@ -238,6 +238,12 @@ impl Room {
             }
         }
 
+        if let Some(winner) = self.check_win() {
+            self.broadcast_game_over(winner);
+            self.phase = Phase::GameOver;
+            return;
+        }
+
         self.pending_night.clear();
         self.phase = Phase::Day;
 
@@ -255,11 +261,6 @@ impl Room {
             if let Some(addr) = &p.addr {
                 addr.do_send(crate::ws::client::ServerText(day_frame.clone()));
             }
-        }
-        if let Some(winner) = self.check_win() {
-            self.broadcast_game_over(winner);
-            self.phase = Phase::GameOver;
-            return;
         }
     }
 
@@ -329,6 +330,12 @@ impl Room {
             }
         }
 
+        if let Some(winner) = self.check_win() {
+            self.broadcast_game_over(winner);
+            self.phase = Phase::GameOver;
+            return;
+        }
+
         self.votes.clear();
         self.pending_night.clear();
         self.phase = Phase::Night;
@@ -348,11 +355,6 @@ impl Room {
             if let Some(addr) = &p.addr {
                 addr.do_send(ServerText(night_frame.clone()));
             }
-        }
-        if let Some(winner) = self.check_win() {
-            self.broadcast_game_over(winner);
-            self.phase = Phase::GameOver;
-            return;
         }
     }
 
