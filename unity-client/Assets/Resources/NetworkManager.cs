@@ -1,21 +1,16 @@
 using System;
-using System.Threading.Tasks;
 using NativeWebSocket;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>
-/// Single-instance WebSocket manager that lives across scene loads.
-/// </summary>
+/// <summary>Singleton WebSocket manager that persists across scenes.</summary>
 public class NetworkManager : MonoBehaviour
 {
     public static NetworkManager Instance { get; private set; }
-
     private WebSocket ws;
-    private const string WS_URL = "ws://localhost:8080/ws";
 
-    // ──────────────────────────────────────────────────────────────────────────────
-    #region Unity lifecycle
+    /* ───────────────────────────  Unity life-cycle  ─────────────────────────── */
+
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
@@ -30,11 +25,11 @@ public class NetworkManager : MonoBehaviour
         CancelInvoke(nameof(Ping));
         if (ws != null) await ws.Close();
     }
-    #endregion
-    // ──────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>Opens the socket and sends the initial join envelope.</summary>
-    public async void Connect()
+    /* ────────────────────────────  Public API  ──────────────────────────────── */
+
+    /// <summary>Open the socket to <paramref name="url"/> and send a “join”.</summary>
+    public async void Connect(string url)
     {
         if (ws != null && ws.State == WebSocketState.Open)
         {
@@ -42,7 +37,7 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        ws = new WebSocket(WS_URL);
+        ws = new WebSocket(url);
 
         ws.OnOpen += () => { Debug.Log("WS → OPEN"); SendJson(new { @event = "join" }); InvokeRepeating(nameof(Ping), 25f, 25f); };
         ws.OnError += err => Debug.LogError($"WS → ERROR  {err}");
@@ -52,8 +47,14 @@ public class NetworkManager : MonoBehaviour
         await ws.Connect();
     }
 
-    // ──────────────────────────────────────────────────────────────────────────────
-    #region Message handling
+    public async void SendJson(object obj)
+    {
+        if (ws == null || ws.State != WebSocketState.Open) return;
+        await ws.SendText(JsonUtility.ToJson(obj));
+    }
+
+    /* ─────────────────────────  Message handling  ──────────────────────────── */
+
     private void HandleMessage(byte[] bytes)
     {
         var json = System.Text.Encoding.UTF8.GetString(bytes);
@@ -66,41 +67,32 @@ public class NetworkManager : MonoBehaviour
         switch (msg.@event)
         {
             case "phase_transition":
-                SceneManager.LoadScene("GameScene");          // night/day flow kicks in here
+                SceneManager.LoadScene("GameScene");
                 break;
 
             case "private_role":
-                PlayerState.Role = msg.role;                  // store role for GameScene UI
+                PlayerState.Role = msg.role;
                 break;
 
-                // add more events as needed: vote_result, reveal, etc.
+                // TODO: vote_result, reveal, etc.
         }
-    }
-    #endregion
-    // ──────────────────────────────────────────────────────────────────────────────
-
-    public async void SendJson(object obj)
-    {
-        if (ws == null || ws.State != WebSocketState.Open) return;
-        await ws.SendText(JsonUtility.ToJson(obj));
     }
 
     private void Ping() => SendJson(new { @event = "ping" });
 
-    // ──────────────────────────────────────────────────────────────────────────────
-    #region Helper structs
+    /* ──────────────────────────────  Helpers  ──────────────────────────────── */
+
     [Serializable]
     private class MessageEnvelope
     {
         public string @event;
-        public string phase;   // used by phase_transition
-        public string role;    // used by private_role
+        public string phase;
+        public string role;
     }
 
-    /// <summary>Example static holder for data you need across scenes.</summary>
+    /// <summary>Quick static holder for per-player state.</summary>
     public static class PlayerState
     {
         public static string Role;
     }
-    #endregion
 }
