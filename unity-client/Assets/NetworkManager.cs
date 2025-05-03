@@ -22,7 +22,7 @@ public class NetworkManager : MonoBehaviour
 
         ws.OnOpen += () => Debug.Log("WS - OPEN");
         ws.OnError += e => Debug.LogError($"WS ERROR: {e}");
-        ws.OnClose += (c, r) => Debug.Log($"WS CLOSE [{c}] {r}");
+        ws.OnClose += (closeCode) => Debug.Log($"WS CLOSE [{closeCode}]");
         ws.OnMessage += bytes =>
         {
             var msg = System.Text.Encoding.UTF8.GetString(bytes);
