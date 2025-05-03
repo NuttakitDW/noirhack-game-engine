@@ -3,13 +3,10 @@ using NativeWebSocket;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-/// <summary>Singleton WebSocket manager that persists across scenes.</summary>
 public class NetworkManager : MonoBehaviour
 {
     public static NetworkManager Instance { get; private set; }
     private WebSocket ws;
-
-    /* ───────────────────────────  Unity life-cycle  ─────────────────────────── */
 
     void Awake()
     {
@@ -29,7 +26,7 @@ public class NetworkManager : MonoBehaviour
     /* ────────────────────────────  Public API  ──────────────────────────────── */
 
     /// <summary>Open the socket to <paramref name="url"/> and send a “join”.</summary>
-    public async void Connect(string url)
+    public async void Connect(string url, string playerName)
     {
         if (ws != null && ws.State == WebSocketState.Open)
         {
@@ -37,12 +34,20 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        ws = new WebSocket(url);
+        ws.OnOpen += () =>
+    {
+        Debug.Log("WS → OPEN");
 
-        ws.OnOpen += () => { Debug.Log("WS → OPEN"); SendJson(new { @event = "join" }); InvokeRepeating(nameof(Ping), 25f, 25f); };
-        ws.OnError += err => Debug.LogError($"WS → ERROR  {err}");
-        ws.OnClose += (closeCode) => { Debug.Log($"WS → CLOSE  {closeCode}"); CancelInvoke(nameof(Ping)); };
-        ws.OnMessage += HandleMessage;
+        var joinMsg = new
+        {
+            type = 1,
+            target = "join",
+            arguments = new[] { new { name = playerName } }
+        };
+        SendJson(joinMsg);
+
+        InvokeRepeating(nameof(Ping), 25f, 25f);
+    };
 
         await ws.Connect();
     }
@@ -52,8 +57,6 @@ public class NetworkManager : MonoBehaviour
         if (ws == null || ws.State != WebSocketState.Open) return;
         await ws.SendText(JsonUtility.ToJson(obj));
     }
-
-    /* ─────────────────────────  Message handling  ──────────────────────────── */
 
     private void HandleMessage(byte[] bytes)
     {

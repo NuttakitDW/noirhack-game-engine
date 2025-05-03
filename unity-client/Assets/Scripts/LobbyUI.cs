@@ -3,7 +3,8 @@ using UnityEngine.UI;
 
 public class LobbyUI : MonoBehaviour
 {
-    [SerializeField] private InputField urlInput;   // <-- new field
+    [SerializeField] private InputField urlInput;    // wss://…
+    [SerializeField] private InputField nameInput;   // YourName
     [SerializeField] private Button joinButton;
 
     private const string DEV_URL = "ws://localhost:8080/ws";
@@ -12,18 +13,16 @@ public class LobbyUI : MonoBehaviour
 
     void OnJoin()
     {
-        // 1. grab text, or fall back
         var url = urlInput.text.Trim();
         if (string.IsNullOrEmpty(url)) url = DEV_URL;
 
-        // 2. spawn NetworkManager if absent
-        if (NetworkManager.Instance == null)
-        {
-            var prefab = Resources.Load<GameObject>("NetworkManager");
-            Instantiate(prefab);
-        }
+        var playerName = nameInput.text.Trim();
+        if (string.IsNullOrEmpty(playerName))
+            playerName = "Player" + Random.Range(1000, 9999);
 
-        // 3. connect
-        NetworkManager.Instance.Connect(url);
+        if (NetworkManager.Instance == null)
+            Instantiate(Resources.Load<GameObject>("NetworkManager"));
+
+        NetworkManager.Instance.Connect(url, playerName);
     }
 }
