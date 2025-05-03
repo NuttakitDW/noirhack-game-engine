@@ -28,34 +28,67 @@ public class NetworkManager : MonoBehaviour
     /// <summary>Open the socket to <paramref name="url"/> and send a “join”.</summary>
     public async void Connect(string url, string playerName)
     {
-        if (ws != null && ws.State == WebSocketState.Open)
+        Debug.Log($"[Connect] url  = '{url}'");
+        Debug.Log($"[Connect] name = '{playerName}'");
+
+        if (string.IsNullOrWhiteSpace(url))
         {
-            Debug.Log("WebSocket already connected.");
+            Debug.LogError("[Connect] URL is empty — abort");
             return;
         }
 
-        ws.OnOpen += () =>
-    {
-        Debug.Log("WS → OPEN");
-
-        var joinMsg = new
+        if (!url.StartsWith("ws://") && !url.StartsWith("wss://"))
         {
-            type = 1,
-            target = "join",
-            arguments = new[] { new { name = playerName } }
+            Debug.LogError($"[Connect] Invalid URL scheme  {url}");
+            return;
+        }
+
+        //--- create socket --------------------------------------------------------
+        ws = new WebSocket(url);
+        Debug.Log($"[Connect] new WebSocket() returned {(ws == null ? "NULL" : "OK")}");
+
+        //--- OnOpen handler -------------------------------------------------------
+        ws.OnOpen += () =>
+        {
+            Debug.Log("[Connect] OnOpen fired");
+
+            // build join payload
+            var joinMsg = new JoinPayload
+            {
+                arguments = new[] { new NameArg { name = playerName } }
+            };
+
+            var json = JsonUtility.ToJson(joinMsg);
+            Debug.Log($"[Connect] join json = '{json ?? "NULL"}'");
+
+            if (json == null)
+            {
+                Debug.LogError("[Connect] JsonUtility returned null!");
+                return;
+            }
+
+            SendJson(joinMsg); // will log inside SendJson
+            InvokeRepeating(nameof(Ping), 25f, 25f);
         };
-        SendJson(joinMsg);
 
-        InvokeRepeating(nameof(Ping), 25f, 25f);
-    };
+        ws.OnError += e => Debug.LogError($"WS ERROR {e}");
+        ws.OnClose += (e) => Debug.Log($"WS CLOSE {e}");
+        ws.OnMessage += HandleMessage;
 
-        await ws.Connect();
+        Debug.Log("[Connect] Awaiting Connect()");
+        await ws.Connect();                    // <-- if this throws we’ll see stack trace
+        Debug.Log("[Connect] await ws.Connect finished");
     }
 
     public async void SendJson(object obj)
     {
-        if (ws == null || ws.State != WebSocketState.Open) return;
-        await ws.SendText(JsonUtility.ToJson(obj));
+        if (ws == null) { Debug.LogError("[SendJson] ws is null"); return; }
+        if (ws.State != WebSocketState.Open) { Debug.LogError($"[SendJson] bad state {ws.State}"); return; }
+
+        var json = JsonUtility.ToJson(obj);
+        Debug.Log($"[SendJson] about to send '{json ?? "NULL"}'");
+
+        await ws.SendText(json);
     }
 
     private void HandleMessage(byte[] bytes)
@@ -93,7 +126,19 @@ public class NetworkManager : MonoBehaviour
         public string role;
     }
 
-    /// <summary>Quick static holder for per-player state.</summary>
+    [Serializable]
+    private class JoinPayload
+    {
+        public int type = 1;
+        public string target = "join";
+        public NameArg[] arguments;
+    }
+
+    [Serializable]
+    private class NameArg
+    {
+        public string name;
+    }
     public static class PlayerState
     {
         public static string Role;
