@@ -4,6 +4,7 @@ use serde_json;
 #[derive(Debug, Deserialize)]
 pub struct Incoming {
     #[serde(rename = "type")]
+    pub frame_type: u8,
     pub target: String,
     pub arguments: Vec<serde_json::Value>,
 }
@@ -19,6 +20,7 @@ pub enum ClientEvent {
 }
 
 pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
+    let _frame_type = msg.frame_type;
     match msg.target.as_str() {
         "join" => {
             let payload = msg.arguments.get(0).ok_or("join expects 1 argument")?;
