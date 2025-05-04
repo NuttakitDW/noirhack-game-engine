@@ -55,6 +55,14 @@ public class NetworkManager : MonoBehaviour
             };
             SendRaw(join);
 
+            var ready = new
+            {
+                type = 1,
+                target = "ready",
+                arguments = new[] { new { ready = true } }
+            };
+            SendRaw(ready);
+
             // jump straight to GameScene
             SceneManager.LoadScene("GameScene");
         };
