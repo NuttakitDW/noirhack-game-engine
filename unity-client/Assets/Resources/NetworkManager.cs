@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using NativeWebSocket;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class NetworkManager : MonoBehaviour
 {
+    /* ──────────────────────────  SINGLETON  ────────────────────────── */
     public static NetworkManager Instance { get; private set; }
     private WebSocket ws;
 
@@ -23,51 +26,34 @@ public class NetworkManager : MonoBehaviour
         if (ws != null) await ws.Close();
     }
 
-    /* ────────────────────────────  Public API  ──────────────────────────────── */
+    /* ──────────────────────────  PUBLIC API  ───────────────────────── */
 
-    /// <summary>Open the socket to <paramref name="url"/> and send a “join”.</summary>
+    private string playerNameCached;
+
+    /// Opens the socket, sends the join payload.
     public async void Connect(string url, string playerName)
     {
-        Debug.Log($"[Connect] url  = '{url}'");
-        Debug.Log($"[Connect] name = '{playerName}'");
+        playerNameCached = playerName;
 
-        if (string.IsNullOrWhiteSpace(url))
+        if (string.IsNullOrWhiteSpace(url) ||
+            (!url.StartsWith("ws://") && !url.StartsWith("wss://")))
         {
-            Debug.LogError("[Connect] URL is empty — abort");
+            Debug.LogError($"Invalid URL: {url}");
             return;
         }
 
-        if (!url.StartsWith("ws://") && !url.StartsWith("wss://"))
-        {
-            Debug.LogError($"[Connect] Invalid URL scheme  {url}");
-            return;
-        }
-
-        //--- create socket --------------------------------------------------------
         ws = new WebSocket(url);
-        Debug.Log($"[Connect] new WebSocket() returned {(ws == null ? "NULL" : "OK")}");
 
-        //--- OnOpen handler -------------------------------------------------------
         ws.OnOpen += () =>
         {
-            Debug.Log("[Connect] OnOpen fired");
+            Debug.Log("WS → OPEN");
 
-            // build join payload
-            var joinMsg = new JoinPayload
+            var join = new JoinPayload
             {
                 arguments = new[] { new NameArg { name = playerName } }
             };
+            SendJson(join);
 
-            var json = JsonUtility.ToJson(joinMsg);
-            Debug.Log($"[Connect] join json = '{json ?? "NULL"}'");
-
-            if (json == null)
-            {
-                Debug.LogError("[Connect] JsonUtility returned null!");
-                return;
-            }
-
-            SendJson(joinMsg); // will log inside SendJson
             InvokeRepeating(nameof(Ping), 25f, 25f);
         };
 
@@ -75,56 +61,61 @@ public class NetworkManager : MonoBehaviour
         ws.OnClose += (e) => Debug.Log($"WS CLOSE {e}");
         ws.OnMessage += HandleMessage;
 
-        Debug.Log("[Connect] Awaiting Connect()");
-        await ws.Connect();                    // <-- if this throws we’ll see stack trace
-        Debug.Log("[Connect] await ws.Connect finished");
+        await ws.Connect();
     }
 
     public async void SendJson(object obj)
     {
-        if (ws == null) { Debug.LogError("[SendJson] ws is null"); return; }
-        if (ws.State != WebSocketState.Open) { Debug.LogError($"[SendJson] bad state {ws.State}"); return; }
-
-        var json = JsonUtility.ToJson(obj);
-        Debug.Log($"[SendJson] about to send '{json ?? "NULL"}'");
-
-        await ws.SendText(json);
+        if (ws == null || ws.State != WebSocketState.Open) return;
+        await ws.SendText(JsonUtility.ToJson(obj));
     }
+
+    /* ──────────────────────────  INCOMING  ────────────────────────── */
 
     private void HandleMessage(byte[] bytes)
     {
-        var json = System.Text.Encoding.UTF8.GetString(bytes);
+        string json = System.Text.Encoding.UTF8.GetString(bytes);
         Debug.Log($"WS ← {json}");
 
-        MessageEnvelope msg;
-        try { msg = JsonUtility.FromJson<MessageEnvelope>(json); }
-        catch { Debug.LogWarning("Bad JSON"); return; }
-
-        switch (msg.@event)
+        /* 1. Lobby snapshot → switch to GameRoom */
+        if (json.Contains("\"target\":\"lobby\""))
         {
-            case "phase_transition":
-                SceneManager.LoadScene("GameScene");
+            var lob = JsonUtility.FromJson<LobbyEnvelope>(json);
+            RoomState.Players = lob.arguments[0].players.ToList();
+
+            var me = RoomState.Players.FirstOrDefault(p => p.name == playerNameCached);
+            if (me != null) PlayerState.MyId = me.id;
+
+            SceneManager.LoadScene("GameRoom");
+            OnRoomUpdate?.Invoke();
+            return;
+        }
+
+        /* 2. Other envelopes parsed to lightweight struct */
+        var env = JsonUtility.FromJson<GenericEnvelope>(json);
+
+        switch (env.target)
+        {
+            case "readyUpdate":               // one player toggled
+                var pl = RoomState.Players.First(p => p.id == env.id);
+                pl.ready = env.ready;
+                OnRoomUpdate?.Invoke();
                 break;
 
-            case "private_role":
-                PlayerState.Role = msg.role;
+            case "phase":                     // server changed phase
+                if (env.phase == "night" || env.phase == "day")
+                    SceneManager.LoadScene("GameScene");   // later you’ll branch here
                 break;
 
-                // TODO: vote_result, reveal, etc.
+            case "role":                      // personal role
+                PlayerState.Role = env.role;
+                break;
         }
     }
 
     private void Ping() => SendJson(new { @event = "ping" });
 
-    /* ──────────────────────────────  Helpers  ──────────────────────────────── */
-
-    [Serializable]
-    private class MessageEnvelope
-    {
-        public string @event;
-        public string phase;
-        public string role;
-    }
+    /* ──────────────────────  MODELS / STATE  ─────────────────────── */
 
     [Serializable]
     private class JoinPayload
@@ -133,14 +124,49 @@ public class NetworkManager : MonoBehaviour
         public string target = "join";
         public NameArg[] arguments;
     }
+    [Serializable] private class NameArg { public string name; }
+
+    /* lobby snapshot */
+    [Serializable]
+    private class LobbyEnvelope
+    {
+        public int type;
+        public string target;
+        public LobbyArg[] arguments;
+    }
+    [Serializable] private class LobbyArg { public PlayerInfo[] players; }
+
+    /* generic small envelope for simple events */
+    [Serializable]
+    private class GenericEnvelope
+    {
+        public string target;
+        public string id;
+        public bool ready;
+        public string phase;
+        public string role;
+    }
 
     [Serializable]
-    private class NameArg
+    public class PlayerInfo
     {
+        public string id;
         public string name;
+        public bool ready;
+    }
+
+    /* shared runtime state */
+    public static class RoomState
+    {
+        public const int MIN_PLAYERS = 4;
+        public static List<PlayerInfo> Players = new();
     }
     public static class PlayerState
     {
+        public static string MyId;
         public static string Role;
     }
+
+    /* one-liner pub-sub for UI */
+    public static Action OnRoomUpdate;
 }
