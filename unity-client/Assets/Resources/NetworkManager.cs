@@ -7,7 +7,7 @@ using UnityEngine.SceneManagement;
 
 public class NetworkManager : MonoBehaviour
 {
-    /* ──────────────────────────  SINGLETON  ────────────────────────── */
+    /* ───────────────  Singleton  ─────────────── */
     public static NetworkManager Instance { get; private set; }
     private WebSocket ws;
 
@@ -22,23 +22,21 @@ public class NetworkManager : MonoBehaviour
 
     async void OnApplicationQuit()
     {
-        CancelInvoke(nameof(Ping));
         if (ws != null) await ws.Close();
     }
 
-    /* ──────────────────────────  PUBLIC API  ───────────────────────── */
+    /* ───────────────  Public API  ─────────────── */
 
-    private string playerNameCached;
+    private string myName;
 
-    /// Opens the socket, sends the join payload.
     public async void Connect(string url, string playerName)
     {
-        playerNameCached = playerName;
+        myName = playerName;
 
         if (string.IsNullOrWhiteSpace(url) ||
             (!url.StartsWith("ws://") && !url.StartsWith("wss://")))
         {
-            Debug.LogError($"Invalid URL: {url}");
+            Debug.LogError($"Invalid WebSocket URL: {url}");
             return;
         }
 
@@ -48,114 +46,98 @@ public class NetworkManager : MonoBehaviour
         {
             Debug.Log("WS → OPEN");
 
-            var join = new JoinPayload
+            // send join
+            var join = new
             {
-                arguments = new[] { new NameArg { name = playerName } }
+                type = 1,
+                target = "join",
+                arguments = new[] { new { name = playerName } }
             };
-            SendJson(join);
+            SendRaw(join);
 
-            InvokeRepeating(nameof(Ping), 25f, 25f);
+            // jump straight to GameScene
+            SceneManager.LoadScene("GameScene");
         };
 
-        ws.OnError += e => Debug.LogError($"WS ERROR {e}");
-        ws.OnClose += (e) => Debug.Log($"WS CLOSE {e}");
+        ws.OnError += e => Debug.LogError($"WS ERROR  {e}");
+        ws.OnClose += (e) => Debug.Log($"WS CLOSE   {e}");
         ws.OnMessage += HandleMessage;
 
         await ws.Connect();
     }
 
-    public async void SendJson(object obj)
+    public async void SendRaw(object obj)
     {
         if (ws == null || ws.State != WebSocketState.Open) return;
         await ws.SendText(JsonUtility.ToJson(obj));
     }
 
-    /* ──────────────────────────  INCOMING  ────────────────────────── */
+    /* ───────────────  Message handling  ─────────────── */
 
-    private void HandleMessage(byte[] bytes)
+    private void HandleMessage(byte[] data)
     {
-        string json = System.Text.Encoding.UTF8.GetString(bytes);
+        string json = System.Text.Encoding.UTF8.GetString(data);
         Debug.Log($"WS ← {json}");
 
-        /* 1. Lobby snapshot → switch to GameRoom */
+        /* 1. Lobby snapshot ---------------------------------------- */
         if (json.Contains("\"target\":\"lobby\""))
         {
             var lob = JsonUtility.FromJson<LobbyEnvelope>(json);
             RoomState.Players = lob.arguments[0].players.ToList();
 
-            var me = RoomState.Players.FirstOrDefault(p => p.name == playerNameCached);
+            // catch my server-generated id
+            var me = RoomState.Players.FirstOrDefault(p => p.name == myName);
             if (me != null) PlayerState.MyId = me.id;
 
-            SceneManager.LoadScene("GameRoom");
             OnRoomUpdate?.Invoke();
             return;
         }
 
-        /* 2. Other envelopes parsed to lightweight struct */
-        var env = JsonUtility.FromJson<GenericEnvelope>(json);
+        /* 2. Generic envelope -------------------------------------- */
+        var env = JsonUtility.FromJson<GenericEnv>(json);
 
         switch (env.target)
         {
-            case "readyUpdate":               // one player toggled
-                var pl = RoomState.Players.First(p => p.id == env.id);
-                pl.ready = env.ready;
-                OnRoomUpdate?.Invoke();
+            case "phase":         // night / day
+                OnPhaseChange?.Invoke(env.phase);
                 break;
 
-            case "phase":                     // server changed phase
-                if (env.phase == "night" || env.phase == "day")
-                    SceneManager.LoadScene("GameScene");   // later you’ll branch here
-                break;
-
-            case "role":                      // personal role
+            case "role":          // private role
                 PlayerState.Role = env.role;
+                OnRole?.Invoke(env.role);
                 break;
         }
     }
 
-    private void Ping() => SendJson(new { @event = "ping" });
+    /* ───────────────  Models & shared state  ─────────────── */
 
-    /* ──────────────────────  MODELS / STATE  ─────────────────────── */
-
-    [Serializable]
-    private class JoinPayload
-    {
-        public int type = 1;
-        public string target = "join";
-        public NameArg[] arguments;
-    }
-    [Serializable] private class NameArg { public string name; }
-
-    /* lobby snapshot */
     [Serializable]
     private class LobbyEnvelope
     {
         public int type;
         public string target;
-        public LobbyArg[] arguments;
+        public LobbyArgs[] arguments;
     }
-    [Serializable] private class LobbyArg { public PlayerInfo[] players; }
-
-    /* generic small envelope for simple events */
     [Serializable]
-    private class GenericEnvelope
+    private class LobbyArgs
+    {
+        public PlayerInfo[] players;
+    }
+    [Serializable]
+    private class GenericEnv
     {
         public string target;
-        public string id;
-        public bool ready;
-        public string phase;
-        public string role;
+        public string phase;  // night / day
+        public string role;   // Werewolf, Seer, ...
     }
-
     [Serializable]
     public class PlayerInfo
     {
         public string id;
         public string name;
-        public bool ready;
+        public bool ready;  // server still sends it but we ignore
     }
 
-    /* shared runtime state */
     public static class RoomState
     {
         public const int MIN_PLAYERS = 4;
@@ -167,6 +149,9 @@ public class NetworkManager : MonoBehaviour
         public static string Role;
     }
 
-    /* one-liner pub-sub for UI */
-    public static Action OnRoomUpdate;
+    /* ───────────────  Simple events for UI  ─────────────── */
+
+    public static Action OnRoomUpdate;           // call to refresh counts
+    public static Action<string> OnPhaseChange;  // arg: "night"/"day"
+    public static Action<string> OnRole;         // arg: role name
 }
