@@ -46,24 +46,19 @@ public class NetworkManager : MonoBehaviour
         {
             Debug.Log("WS → OPEN");
 
-            // send join
-            var join = new
+            // --- join ------------------------------------------------------------
+            var join = new HubMessage<JoinArg>
             {
-                type = 1,
                 target = "join",
-                arguments = new[] { new { name = playerName } }
+                arguments = new[] { new JoinArg { name = playerName } }
             };
-            SendRaw(join);
+            SendRaw(join);   // will log JSON inside SendRaw
 
-            var ready = new
-            {
-                type = 1,
-                target = "ready",
-                arguments = new[] { new { ready = true } }
-            };
+            // --- auto-ready ------------------------------------------------------
+            var ready = new ReadyFrame(true);
             SendRaw(ready);
 
-            // jump straight to GameScene
+            // --- load scene ------------------------------------------------------
             SceneManager.LoadScene("GameScene");
         };
 
@@ -77,8 +72,13 @@ public class NetworkManager : MonoBehaviour
     public async void SendRaw(object obj)
     {
         if (ws == null || ws.State != WebSocketState.Open) return;
-        await ws.SendText(JsonUtility.ToJson(obj));
+
+        string json = JsonUtility.ToJson(obj);
+        Debug.Log($"WS → {json}");
+
+        await ws.SendText(json);
     }
+
 
     /* ───────────────  Message handling  ─────────────── */
 
@@ -155,6 +155,30 @@ public class NetworkManager : MonoBehaviour
     {
         public static string MyId;
         public static string Role;
+    }
+
+    [Serializable]
+    private class HubMessage<T>
+    {
+        public int type = 1;      // 1 = Invocation frame
+        public string target;
+        public T[] arguments;
+    }
+
+    [Serializable] private class JoinArg { public string name; }
+    [Serializable] private class ReadyArg { public bool ready; }
+
+    [Serializable]
+    private class ReadyFrame
+    {
+        public int type = 1;
+        public string target = "ready";
+        public bool[] arguments;
+
+        public ReadyFrame(bool value)
+        {
+            arguments = new[] { value };
+        }
     }
 
     /* ───────────────  Simple events for UI  ─────────────── */
