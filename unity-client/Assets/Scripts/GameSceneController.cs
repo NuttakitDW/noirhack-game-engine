@@ -7,6 +7,21 @@ using UnityEngine.UI;
 /// </summary>
 public class GameSceneController : MonoBehaviour
 {
+    [Header("Day/Night Colors")]
+    [SerializeField] Camera mainCamera;    // drag Main Camera here
+    [SerializeField] Image headerBar;      // drag HeaderBar panel Image
+    [SerializeField] Image gameFrame;      // drag GameFrame panel Image
+
+    [Header("Night Colors")]
+    [SerializeField] Color nightCamColor = new Color32(0x13, 0x1A, 0x29, 0xFF);
+    [SerializeField] Color nightHeaderColor = new Color32(0x13, 0x19, 0x28, 0xFF);
+    [SerializeField] Color nightFrameColor = new Color32(0x1F, 0x29, 0x37, 0xFF);
+
+    [Header("Day Colors")]
+    [SerializeField] Color dayCamColor = new Color32(0xE8, 0xE8, 0xE8, 0xFF);
+    [SerializeField] Color dayHeaderColor = new Color32(0xFF, 0xFF, 0xFF, 0xFF);
+    [SerializeField] Color dayFrameColor = new Color32(0xF0, 0xF0, 0xF0, 0xFF);
+
     [Header("Phase Header")]
     [SerializeField] Image phaseIcon;        // moon / sun Image
     [SerializeField] Sprite moonSprite;       // assign in Inspector
@@ -43,11 +58,16 @@ public class GameSceneController : MonoBehaviour
         actionsBox.SetActive(true);
         bool night = phase == "night";
 
+        // ─── Swap the palette ───────────────────────────────────
+        mainCamera.backgroundColor = night ? nightCamColor : dayCamColor;
+        headerBar.color = night ? nightHeaderColor : dayHeaderColor;
+        gameFrame.color = night ? nightFrameColor : dayFrameColor;
+
         phaseIcon.sprite = night ? moonSprite : sunSprite;
         phaseTitle.text = night ? "Night Phase" : "Day Phase";
         dayBadgeText.text = $"Day {round}";
 
-        hintLabel.text = "Select a player to perform an action";
+        hintLabel.text = night ? "Select a player to perform an action" : "Choose a player to vote";
     }
 
     void UpdateRolePill(string role)
