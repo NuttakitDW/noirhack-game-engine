@@ -10,6 +10,7 @@ public class NetworkManager : MonoBehaviour
 {
     /*───────────────────────── Singleton ─────────────────────────*/
     public static NetworkManager Instance { get; private set; }
+    public static Action<string> OnNightEnd;
     WebSocket ws;
 
     void Awake()
@@ -118,8 +119,14 @@ public class NetworkManager : MonoBehaviour
                 var ra = pr.arguments[0];
                 OnPeekResult?.Invoke(ra.target, ra.role);
                 break;
+            case "nightEnd":
+                {
+                    var ne = JsonUtility.FromJson<NightEndEnvelope>(json);
+                    string victim = ne.arguments[0].killed;
+                    OnNightEnd?.Invoke(victim);        // new event
+                    break;
+                }
 
-                // add more targets here (voteUpdate, chat, etc.)
         }
     }
 
@@ -161,4 +168,6 @@ public class NetworkManager : MonoBehaviour
 
     [Serializable] class PeekResultEnvelope { public int type; public string target; public PeekArg[] arguments; }
     [Serializable] class PeekArg { public string target; public string role; }
+    [Serializable] class NightEndEnvelope { public int type; public string target; public NightEndArg[] arguments; }
+    [Serializable] class NightEndArg { public string killed; }
 }

@@ -24,6 +24,7 @@ public class NightActionManager : MonoBehaviour
         toastLabel.alpha = 0;
 
         PlayerCardEvents.OnCardSelected += HandleSelect;
+        NetworkManager.OnNightEnd += _ => ClearSelection();
     }
     void OnDisable()
     {
@@ -96,6 +97,14 @@ public class NightActionManager : MonoBehaviour
         NetworkManager.Instance.SendNightAction(action, targetId);
         peekButton.interactable = false;
         killButton.interactable = false;
+    }
+
+    void ClearSelection()
+    {
+        if (currentCard) currentCard.SetSelected(false);
+        peekButton.gameObject.SetActive(false);
+        killButton.gameObject.SetActive(false);
+        hintLabel.text = "Waiting for next phase…";
     }
 
     /* ───────── toast helper ─── */
