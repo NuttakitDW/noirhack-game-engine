@@ -13,6 +13,7 @@ public class PlayerCard : MonoBehaviour
     [SerializeField] TMP_Text roleLabel;
     [SerializeField] Image backgroundImage;
     [SerializeField] GameObject deathOverlay;
+    [SerializeField] TMP_Text voteBadge;
 
     Button btn;
 
@@ -57,6 +58,12 @@ public class PlayerCard : MonoBehaviour
         // prevent clicks
         var btn = GetComponent<Button>();
         if (btn) btn.interactable = false;
+    }
+
+    public void SetVoteCount(int n)
+    {
+        voteBadge.text = n > 0 ? n.ToString() : "";
+        voteBadge.gameObject.SetActive(n > 0);
     }
 
 

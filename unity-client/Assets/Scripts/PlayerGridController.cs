@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Collections.Generic; // Added for Dictionary
 using UnityEngine;
 
 /// <summary>
@@ -27,6 +28,8 @@ public class PlayerGridController : MonoBehaviour
         NetworkManager.OnRoomUpdate += Rebuild;
         NetworkManager.OnPeekResult += ApplyPeekBadge;
         NetworkManager.OnNightEnd += HandleNightEnd;
+        NetworkManager.OnVoteUpdate += HandleVoteUpdate;    // ← new
+        NetworkManager.OnDayEnd += HandleDayEnd;        // ← new
         Rebuild();            // in case snapshot already exists
     }
 
@@ -35,6 +38,8 @@ public class PlayerGridController : MonoBehaviour
         NetworkManager.OnRoomUpdate -= Rebuild;
         NetworkManager.OnPeekResult -= ApplyPeekBadge;
         NetworkManager.OnNightEnd -= HandleNightEnd;
+        NetworkManager.OnVoteUpdate -= HandleVoteUpdate;
+        NetworkManager.OnDayEnd -= HandleDayEnd;
     }
 
     /* -------------------------------------------------------------------- */
@@ -89,6 +94,31 @@ public class PlayerGridController : MonoBehaviour
         }
     }
 
+    // live vote counts
+    void HandleVoteUpdate(Dictionary<string, int> tally)
+    {
+        foreach (Transform t in content)
+        {
+            var card = t.GetComponent<PlayerCard>();
+            int count = tally.ContainsKey(card.PlayerId) ? tally[card.PlayerId] : 0;
+            card.SetVoteCount(count);   // new helper in PlayerCard
+        }
+    }
+
+    // end‐of‐day lynch
+    void HandleDayEnd(string lynchedId)
+    {
+        if (string.IsNullOrEmpty(lynchedId)) return;
+        foreach (Transform t in content)
+        {
+            var card = t.GetComponent<PlayerCard>();
+            if (card.PlayerId == lynchedId)
+            {
+                card.MarkDead();
+                break;
+            }
+        }
+    }
 
     /* -------------------------------------------------------------------- */
     Sprite PickAvatar(string seed)
