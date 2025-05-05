@@ -143,7 +143,24 @@ public class NetworkManager : MonoBehaviour
                     OnNightEnd?.Invoke(victim);        // new event
                     break;
                 }
+            case "voteUpdate":
+                {
+                    var vu = JsonUtility.FromJson<VoteUpdateEnvelope>(json);
+                    // arguments[0] is a JSON object whose keys are playerIds and values are vote counts
+                    var tally = new Dictionary<string, int>();
+                    foreach (var kv in vu.arguments[0].votes)
+                        tally[kv.playerId] = kv.count;
+                    OnVoteUpdate?.Invoke(tally);
+                    break;
+                }
 
+            case "dayEnd":
+                {
+                    var de = JsonUtility.FromJson<DayEndEnvelope>(json);
+                    string lynchedId = de.arguments[0].lynched;  // may be null or empty
+                    OnDayEnd?.Invoke(lynchedId);
+                    break;
+                }
         }
     }
 
@@ -164,6 +181,8 @@ public class NetworkManager : MonoBehaviour
     public static Action<string, int> OnPhaseChange;             // phase, round
     public static Action<string> OnRole;                       // my role
     public static Action<string, string> OnPeekResult;           // targetId, role
+    public static Action<Dictionary<string, int>> OnVoteUpdate;
+    public static Action<string> OnDayEnd;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -194,4 +213,20 @@ public class NetworkManager : MonoBehaviour
         public string voter;
         public string target;
     }
+    [Serializable] class VoteUpdateEnvelope { public VoteUpdateArg[] arguments; }
+    [Serializable]
+    class VoteUpdateArg
+    {
+        // We expect something like { votes:[ { playerId:"...",count:2 }, ... ] }
+        public VoteCount[] votes;
+    }
+    [Serializable]
+    class VoteCount
+    {
+        public string playerId;
+        public int count;
+    }
+
+    [Serializable] class DayEndEnvelope { public DayEndArg[] arguments; }
+    [Serializable] class DayEndArg { public string lynched; }
 }
