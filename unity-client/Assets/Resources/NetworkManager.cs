@@ -106,9 +106,13 @@ public class NetworkManager : MonoBehaviour
 
         switch (env.target)
         {
-            case "phase":         // night / day
-                OnPhaseChange?.Invoke(env.phase);
-                break;
+            case "phase":          // night / day, plus round #
+                {
+                    var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
+                    var arg = pe.arguments[0];
+                    OnPhaseChange?.Invoke(arg.phase, arg.round);
+                    break;
+                }
 
             case "role":          // private role
                 PlayerState.Role = env.role;
@@ -181,9 +185,24 @@ public class NetworkManager : MonoBehaviour
         }
     }
 
+    [Serializable]
+    private class PhaseEnvelope
+    {
+        public int type;
+        public string target;
+        public PhaseArg[] arguments;
+    }
+    [Serializable]
+    private class PhaseArg
+    {
+        public string phase;
+        public int round;
+        public int duration;
+    }
+
     /* ───────────────  Simple events for UI  ─────────────── */
 
     public static Action OnRoomUpdate;           // call to refresh counts
-    public static Action<string> OnPhaseChange;  // arg: "night"/"day"
+    public static Action<string, int> OnPhaseChange;
     public static Action<string> OnRole;         // arg: role name
 }
