@@ -1,3 +1,4 @@
+// Assets/Resources/NetworkManager.cs   (singleton across scenes)
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,9 +8,9 @@ using UnityEngine.SceneManagement;
 
 public class NetworkManager : MonoBehaviour
 {
-    /* ───────────────  Singleton  ─────────────── */
+    /*───────────────────────── Singleton ─────────────────────────*/
     public static NetworkManager Instance { get; private set; }
-    private WebSocket ws;
+    WebSocket ws;
 
     void Awake()
     {
@@ -17,27 +18,20 @@ public class NetworkManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
     }
-
     void Update() => ws?.DispatchMessageQueue();
+    async void OnApplicationQuit() { if (ws != null) await ws.Close(); }
 
-    async void OnApplicationQuit()
-    {
-        if (ws != null) await ws.Close();
-    }
-
-    /* ───────────────  Public API  ─────────────── */
-
-    private string myName;
+    /*───────────────────────── Connect / join ────────────────────*/
+    string myName;
 
     public async void Connect(string url, string playerName)
     {
         myName = playerName;
 
         if (string.IsNullOrWhiteSpace(url) ||
-            (!url.StartsWith("ws://") && !url.StartsWith("wss://")))
+           !(url.StartsWith("ws://") || url.StartsWith("wss://")))
         {
-            Debug.LogError($"Invalid WebSocket URL: {url}");
-            return;
+            Debug.LogError($"Bad WS url: {url}"); return;
         }
 
         ws = new WebSocket(url);
@@ -46,54 +40,54 @@ public class NetworkManager : MonoBehaviour
         {
             Debug.Log("WS → OPEN");
 
-            // --- join ------------------------------------------------------------
-            var join = new HubMessage<JoinArg>
+            SendRaw(new HubMessage<JoinArg>
             {
                 target = "join",
                 arguments = new[] { new JoinArg { name = playerName } }
-            };
-            SendRaw(join);   // will log JSON inside SendRaw
+            });
 
-            // --- auto-ready ------------------------------------------------------
-            var ready = new ReadyFrame(true);
-            SendRaw(ready);
+            SendRaw(new ReadyFrame(true));
 
-            // --- load scene ------------------------------------------------------
             SceneManager.LoadScene("GameScene");
         };
-
-        ws.OnError += e => Debug.LogError($"WS ERROR  {e}");
-        ws.OnClose += (e) => Debug.Log($"WS CLOSE   {e}");
+        ws.OnError += e => Debug.LogError($"WS ERROR {e}");
+        ws.OnClose += c => Debug.Log($"WS CLOSE  {c}");
         ws.OnMessage += HandleMessage;
 
         await ws.Connect();
     }
 
-    public async void SendRaw(object obj)
+    /*───────────────────────── Outgoing helpers ──────────────────*/
+    public void SendNightAction(string action, string targetId)
+    {
+        var frame = new HubMessage<NightArg>
+        {
+            target = "nightAction",
+            arguments = new[] { new NightArg { action = action, target = targetId } }
+        };
+        SendRaw(frame);
+    }
+
+    async void SendRaw(object obj)
     {
         if (ws == null || ws.State != WebSocketState.Open) return;
-
         string json = JsonUtility.ToJson(obj);
         Debug.Log($"WS → {json}");
-
         await ws.SendText(json);
     }
 
-
-    /* ───────────────  Message handling  ─────────────── */
-
-    private void HandleMessage(byte[] data)
+    /*───────────────────────── Incoming parsing ──────────────────*/
+    void HandleMessage(byte[] data)
     {
         string json = System.Text.Encoding.UTF8.GetString(data);
         Debug.Log($"WS ← {json}");
 
-        /* 1. Lobby snapshot ---------------------------------------- */
+        // Fast path: lobby snapshot comes only once per join/update
         if (json.Contains("\"target\":\"lobby\""))
         {
             var lob = JsonUtility.FromJson<LobbyEnvelope>(json);
             RoomState.Players = lob.arguments[0].players.ToList();
 
-            // catch my server-generated id
             var me = RoomState.Players.FirstOrDefault(p => p.name == myName);
             if (me != null) PlayerState.MyId = me.id;
 
@@ -101,62 +95,35 @@ public class NetworkManager : MonoBehaviour
             return;
         }
 
-        /* 2. Generic envelope -------------------------------------- */
+        // Generic target switch
         var env = JsonUtility.FromJson<GenericEnv>(json);
 
         switch (env.target)
         {
-            case "phase":          // night / day, plus round #
-                {
-                    var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
-                    var arg = pe.arguments[0];
-                    OnPhaseChange?.Invoke(arg.phase, arg.round);
-                    break;
-                }
+            case "phase":
+                var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
+                var pa = pe.arguments[0];
+                OnPhaseChange?.Invoke(pa.phase, pa.round);
+                break;
 
-            case "role":          // private role
-                {
-                    var re = JsonUtility.FromJson<RoleEnvelope>(json);
-                    var role = re.arguments.Length > 0 ? re.arguments[0].role : "N/A";
+            case "role":
+                var re = JsonUtility.FromJson<RoleEnvelope>(json);
+                string role = re.arguments.Length > 0 ? re.arguments[0].role : "N/A";
+                PlayerState.Role = role;
+                OnRole?.Invoke(role);
+                break;
 
-                    Debug.Log($"Parsed role = {role}");
+            case "peekResult":
+                var pr = JsonUtility.FromJson<PeekResultEnvelope>(json);
+                var ra = pr.arguments[0];
+                OnPeekResult?.Invoke(ra.target, ra.role);
+                break;
 
-                    PlayerState.Role = role;
-                    OnRole?.Invoke(role);
-                    break;
-                }
+                // add more targets here (voteUpdate, chat, etc.)
         }
     }
 
-    /* ───────────────  Models & shared state  ─────────────── */
-
-    [Serializable]
-    private class LobbyEnvelope
-    {
-        public int type;
-        public string target;
-        public LobbyArgs[] arguments;
-    }
-    [Serializable]
-    private class LobbyArgs
-    {
-        public PlayerInfo[] players;
-    }
-    [Serializable]
-    private class GenericEnv
-    {
-        public string target;
-        public string phase;  // night / day
-        public string role;   // Werewolf, Seer, ...
-    }
-    [Serializable]
-    public class PlayerInfo
-    {
-        public string id;
-        public string name;
-        public bool ready;  // server still sends it but we ignore
-    }
-
+    /*───────────────────────── Shared state ─────────────────────*/
     public static class RoomState
     {
         public const int MIN_PLAYERS = 4;
@@ -168,62 +135,30 @@ public class NetworkManager : MonoBehaviour
         public static string Role;
     }
 
-    [Serializable]
-    private class HubMessage<T>
-    {
-        public int type = 1;      // 1 = Invocation frame
-        public string target;
-        public T[] arguments;
-    }
+    /*───────────────────────── Events ────────────────────────────*/
+    public static Action OnRoomUpdate;                 // lobby changed
+    public static Action<string, int> OnPhaseChange;             // phase, round
+    public static Action<string> OnRole;                       // my role
+    public static Action<string, string> OnPeekResult;           // targetId, role
 
-    [Serializable] private class JoinArg { public string name; }
-    [Serializable] private class ReadyArg { public bool ready; }
+    /*───────────────────────── DTOs / envelopes ─────────────────*/
+    [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
+    [Serializable] class JoinArg { public string name; }
+    [Serializable] class ReadyFrame { public int type = 1; public string target = "ready"; public bool[] arguments; public ReadyFrame(bool v) { arguments = new[] { v }; } }
+    [Serializable] class NightArg { public string action; public string target; }
 
-    [Serializable]
-    private class ReadyFrame
-    {
-        public int type = 1;
-        public string target = "ready";
-        public bool[] arguments;
+    [Serializable] class LobbyEnvelope { public int type; public string target; public LobbyArgs[] arguments; }
+    [Serializable] class LobbyArgs { public PlayerInfo[] players; }
+    [Serializable] public class PlayerInfo { public string id; public string name; public bool ready; }
 
-        public ReadyFrame(bool value)
-        {
-            arguments = new[] { value };
-        }
-    }
+    [Serializable] class GenericEnv { public string target; }
 
-    [Serializable]
-    private class PhaseEnvelope
-    {
-        public int type;
-        public string target;
-        public PhaseArg[] arguments;
-    }
-    [Serializable]
-    private class PhaseArg
-    {
-        public string phase;
-        public int round;
-        public int duration;
-    }
+    [Serializable] class PhaseEnvelope { public int type; public string target; public PhaseArg[] arguments; }
+    [Serializable] class PhaseArg { public string phase; public int round; }
 
-    [Serializable]
-    private class RoleEnvelope
-    {
-        public int type;
-        public string target;      // "role"
-        public RoleArg[] arguments;   // array length 1
-    }
+    [Serializable] class RoleEnvelope { public int type; public string target; public RoleArg[] arguments; }
+    [Serializable] class RoleArg { public string role; }
 
-    [Serializable]
-    private class RoleArg
-    {
-        public string role;
-    }
-
-    /* ───────────────  Simple events for UI  ─────────────── */
-
-    public static Action OnRoomUpdate;           // call to refresh counts
-    public static Action<string, int> OnPhaseChange;
-    public static Action<string> OnRole;         // arg: role name
+    [Serializable] class PeekResultEnvelope { public int type; public string target; public PeekArg[] arguments; }
+    [Serializable] class PeekArg { public string target; public string role; }
 }
