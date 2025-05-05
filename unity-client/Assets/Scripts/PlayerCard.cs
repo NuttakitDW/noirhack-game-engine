@@ -14,15 +14,16 @@ public class PlayerCard : MonoBehaviour
     [SerializeField] Image backgroundImage;
     [SerializeField] GameObject deathOverlay;
     [SerializeField] TMP_Text voteBadge;
+    [SerializeField] Sprite placeholderAvatar;
+
 
     Button btn;
 
-    public void Init(string id, string name, Sprite[] avatarPool)
+    public void Init(string id, string name, Sprite avatar)
     {
         PlayerId = id;
-
         nameLabel.text = name;
-        avatarImage.sprite = PickAvatar(id, avatarPool);
+        avatarImage.sprite = avatar;
 
         btn = GetComponent<Button>();
         btn.onClick.AddListener(OnClick);
@@ -64,14 +65,5 @@ public class PlayerCard : MonoBehaviour
     {
         voteBadge.text = n > 0 ? n.ToString() : "";
         voteBadge.gameObject.SetActive(n > 0);
-    }
-
-
-    Sprite PickAvatar(string seed, Sprite[] pool)
-    {
-        if (pool == null || pool.Length == 0) return null;
-
-        int idx = Mathf.Abs(seed.GetHashCode()) % pool.Length;
-        return pool[idx];
     }
 }

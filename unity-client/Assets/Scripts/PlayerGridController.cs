@@ -45,26 +45,39 @@ public class PlayerGridController : MonoBehaviour
     /* -------------------------------------------------------------------- */
     void Rebuild()
     {
-        // Clear previous cards
+        // 1. wipe old cards
         foreach (Transform c in content) Destroy(c.gameObject);
 
-        // Create one card per player (sorted by name for stability)
-        foreach (var p in NetworkManager.RoomState.Players.OrderBy(pl => pl.name))
+        // 2. load pool if not set
+        if (avatarPool == null || avatarPool.Length == 0)
+            avatarPool = Resources.LoadAll<Sprite>("Avatars");
+
+        var players = NetworkManager.RoomState.Players
+                        .OrderBy(p => p.name)    // or p.id
+                        .ToList();
+
+        bool hasEnough = avatarPool.Length >= players.Count;
+
+        // 3. instantiate with unique avatars
+        for (int i = 0; i < players.Count; i++)
         {
+            var p = players[i];
             var go = Instantiate(cardPrefab, content);
             var card = go.GetComponent<PlayerCard>();
 
-            // Pick a deterministic avatar based on player id
-            card.Init(p.id, p.name, avatarPool);
+            // pick the i-th sprite if we have it
+            Sprite avatar = hasEnough
+                ? avatarPool[i]
+                : placeholderAvatar;
 
-            // Mark local player
+            card.Init(p.id, p.name, avatar);
+
+            // mark “You”
             if (p.id == NetworkManager.PlayerState.MyId)
-            {
-                var badge = go.transform.Find("YouBadge");
-                if (badge) badge.gameObject.SetActive(true);
-            }
+                go.transform.Find("YouBadge")?.gameObject.SetActive(true);
         }
     }
+
 
     void ApplyPeekBadge(string playerId, string role)
     {
@@ -118,16 +131,5 @@ public class PlayerGridController : MonoBehaviour
                 break;
             }
         }
-    }
-
-    /* -------------------------------------------------------------------- */
-    Sprite PickAvatar(string seed)
-    {
-        if (avatarPool != null && avatarPool.Length > 0)
-        {
-            int idx = Mathf.Abs(seed.GetHashCode()) % avatarPool.Length;
-            return avatarPool[idx];
-        }
-        return placeholderAvatar;
     }
 }
