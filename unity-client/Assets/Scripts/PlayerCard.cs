@@ -30,7 +30,7 @@ public class PlayerCard : MonoBehaviour
 
     public void SetSelected(bool sel) =>
         outline.color = sel
-            ? new Color32(0xFF, 0xCF, 0x3F, 0xFF)
+            ? new Color32(0xFF, 0xCF, 0x3F, 0x40)
             : new Color32(0, 0, 0, 0);
 
     Sprite PickAvatar(string seed, Sprite[] pool)
