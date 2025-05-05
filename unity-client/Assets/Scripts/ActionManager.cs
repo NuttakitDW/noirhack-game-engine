@@ -1,40 +1,64 @@
-// Assets/Scripts/NightActionManager.cs
+// Assets/Scripts/ActionManager.cs
 using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class NightActionManager : MonoBehaviour
+public class ActionManager : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] Button peekButton;
     [SerializeField] Button killButton;
-    [SerializeField] TMP_Text hintLabel;     // main hint in ActionsBox
-    [SerializeField] TMP_Text toastLabel;    // red error banner
+    [SerializeField] Button voteButton;    // new
+    [SerializeField] TMP_Text hintLabel;
+    [SerializeField] TMP_Text toastLabel;
 
-    /* ───────────────────────── */
-    PlayerCard currentCard;   // the card that is currently selected
-    string targetId;      // playerId of that card
+    PlayerCard currentCard;
+    string currentPhase = "lobby";      // tracks night vs day
+    string targetId;
 
-    /* ───── Unity lifecycle ─── */
     void OnEnable()
     {
+        // start with everything off
         peekButton.gameObject.SetActive(false);
         killButton.gameObject.SetActive(false);
+        voteButton.gameObject.SetActive(false);
         toastLabel.alpha = 0;
 
         PlayerCardEvents.OnCardSelected += HandleSelect;
-        NetworkManager.OnNightEnd += _ => ClearSelection();
+        NetworkManager.OnPhaseChange += HandlePhaseChange;
     }
+
     void OnDisable()
     {
         PlayerCardEvents.OnCardSelected -= HandleSelect;
+        NetworkManager.OnPhaseChange -= HandlePhaseChange;
     }
 
-    /* ───────── selection ────── */
+    void HandlePhaseChange(string phase, int round)
+    {
+        currentPhase = phase;
+
+        // clear any prior selection
+        if (currentCard) currentCard.SetSelected(false);
+        peekButton.gameObject.SetActive(false);
+        killButton.gameObject.SetActive(false);
+        voteButton.gameObject.SetActive(false);
+
+        // update hint text
+        if (phase == "night")
+        {
+            hintLabel.text = "Select a player to perform an action";
+        }
+        else    // day
+        {
+            hintLabel.text = "Select a player to vote";
+        }
+    }
+
     void HandleSelect(PlayerCard card)
     {
-        // Deselect previous
+        // deselect old
         if (currentCard && currentCard != card)
             currentCard.SetSelected(false);
 
@@ -42,32 +66,51 @@ public class NightActionManager : MonoBehaviour
         targetId = card.PlayerId;
 
         bool isSelf = targetId == NetworkManager.PlayerState.MyId;
+        bool isNight = currentPhase == "night";
+
+        // clear all buttons
+        peekButton.gameObject.SetActive(false);
+        killButton.gameObject.SetActive(false);
+        voteButton.gameObject.SetActive(false);
 
         if (isSelf)
         {
-            hintLabel.text = "You cannot target yourself";
-            peekButton.gameObject.SetActive(false);
-            killButton.gameObject.SetActive(false);
+            hintLabel.text = isNight
+                ? "You cannot target yourself"
+                : "You cannot vote for yourself";
             StartCoroutine(ShowToast("Choose another player"));
             return;
         }
 
-        // Highlight new selection
-        card.SetSelected(true);
-        hintLabel.text = "Choose Peek or Kill";
+        // Non-self selection
+        currentCard.SetSelected(true);
 
-        // Wire buttons each time (clears previous listeners)
-        peekButton.onClick.RemoveAllListeners();
-        killButton.onClick.RemoveAllListeners();
+        if (isNight)
+        {
+            // Night: show Peek/Kill
+            hintLabel.text = "Choose Peek or Kill";
 
-        peekButton.onClick.AddListener(DoPeek);
-        killButton.onClick.AddListener(DoKill);
+            peekButton.onClick.RemoveAllListeners();
+            killButton.onClick.RemoveAllListeners();
 
-        peekButton.gameObject.SetActive(true);
-        killButton.gameObject.SetActive(true);
+            peekButton.onClick.AddListener(DoPeek);
+            killButton.onClick.AddListener(DoKill);
+
+            peekButton.gameObject.SetActive(true);
+            killButton.gameObject.SetActive(true);
+        }
+        else
+        {
+            // Day: show Vote
+            hintLabel.text = "Choose Vote";
+
+            voteButton.onClick.RemoveAllListeners();
+            voteButton.onClick.AddListener(DoVote);
+
+            voteButton.gameObject.SetActive(true);
+        }
     }
 
-    /* ───────── actions ──────── */
     void DoPeek()
     {
         if (NetworkManager.PlayerState.Role != "Seer")
@@ -75,9 +118,9 @@ public class NightActionManager : MonoBehaviour
             StartCoroutine(ShowToast("You are not the Seer"));
             return;
         }
-
-        SendAction("peek");
         hintLabel.text = "Peek sent…";
+        NetworkManager.Instance.SendNightAction("peek", targetId);
+        peekButton.interactable = killButton.interactable = false;
     }
 
     void DoKill()
@@ -87,32 +130,24 @@ public class NightActionManager : MonoBehaviour
             StartCoroutine(ShowToast("You are not the Werewolf"));
             return;
         }
-
-        SendAction("kill");
         hintLabel.text = "Kill sent…";
+        NetworkManager.Instance.SendNightAction("kill", targetId);
+        peekButton.interactable = killButton.interactable = false;
     }
 
-    void SendAction(string action)
+    void DoVote()
     {
-        NetworkManager.Instance.SendNightAction(action, targetId);
-        peekButton.interactable = false;
-        killButton.interactable = false;
+        hintLabel.text = "Vote sent…";
+        // you’ll implement SendVote in NetworkManager later
+        NetworkManager.Instance.SendVote(targetId);
+        voteButton.interactable = false;
     }
 
-    void ClearSelection()
-    {
-        if (currentCard) currentCard.SetSelected(false);
-        peekButton.gameObject.SetActive(false);
-        killButton.gameObject.SetActive(false);
-        hintLabel.text = "Waiting for next phase…";
-    }
-
-    /* ───────── toast helper ─── */
-    IEnumerator ShowToast(string msg, float seconds = 2f)
+    IEnumerator ShowToast(string msg, float duration = 2f)
     {
         toastLabel.text = msg;
-        toastLabel.alpha = 1;
-        yield return new WaitForSeconds(seconds);
-        toastLabel.alpha = 0;
+        toastLabel.alpha = 1f;
+        yield return new WaitForSeconds(duration);
+        toastLabel.alpha = 0f;
     }
 }

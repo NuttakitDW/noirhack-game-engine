@@ -69,6 +69,23 @@ public class NetworkManager : MonoBehaviour
         SendRaw(frame);
     }
 
+    public void SendVote(string targetId)
+    {
+        var frame = new HubMessage<VoteArg>
+        {
+            target = "vote",
+            arguments = new[]
+            {
+            new VoteArg
+            {
+                voter  = PlayerState.MyId,
+                target = targetId
+            }
+        }
+        };
+        SendRaw(frame);
+    }
+
     async void SendRaw(object obj)
     {
         if (ws == null || ws.State != WebSocketState.Open) return;
@@ -170,4 +187,11 @@ public class NetworkManager : MonoBehaviour
     [Serializable] class PeekArg { public string target; public string role; }
     [Serializable] class NightEndEnvelope { public int type; public string target; public NightEndArg[] arguments; }
     [Serializable] class NightEndArg { public string killed; }
+
+    [Serializable]
+    private class VoteArg
+    {
+        public string voter;
+        public string target;
+    }
 }
