@@ -9,6 +9,8 @@ public class PlayerCard : MonoBehaviour
     [SerializeField] Image outline;
     [SerializeField] Image avatarImage;
     [SerializeField] TMP_Text nameLabel;
+    [SerializeField] GameObject roleBadge;   // drag RoleBadge
+    [SerializeField] TMP_Text roleLabel;   // TMP inside RoleBadge
 
     Button btn;
 
@@ -32,6 +34,12 @@ public class PlayerCard : MonoBehaviour
         outline.color = sel
             ? new Color32(0xFF, 0xCF, 0x3F, 0x40)
             : new Color32(0, 0, 0, 0);
+
+    public void ShowRole(string role)
+    {
+        roleLabel.text = role;
+        roleBadge.SetActive(true);
+    }
 
     Sprite PickAvatar(string seed, Sprite[] pool)
     {
