@@ -115,9 +115,16 @@ public class NetworkManager : MonoBehaviour
                 }
 
             case "role":          // private role
-                PlayerState.Role = env.role;
-                OnRole?.Invoke(env.role);
-                break;
+                {
+                    var re = JsonUtility.FromJson<RoleEnvelope>(json);
+                    var role = re.arguments.Length > 0 ? re.arguments[0].role : "N/A";
+
+                    Debug.Log($"Parsed role = {role}");
+
+                    PlayerState.Role = role;
+                    OnRole?.Invoke(role);
+                    break;
+                }
         }
     }
 
@@ -198,6 +205,20 @@ public class NetworkManager : MonoBehaviour
         public string phase;
         public int round;
         public int duration;
+    }
+
+    [Serializable]
+    private class RoleEnvelope
+    {
+        public int type;
+        public string target;      // "role"
+        public RoleArg[] arguments;   // array length 1
+    }
+
+    [Serializable]
+    private class RoleArg
+    {
+        public string role;
     }
 
     /* ───────────────  Simple events for UI  ─────────────── */

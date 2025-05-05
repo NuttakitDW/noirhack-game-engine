@@ -17,6 +17,10 @@ public class GameSceneController : MonoBehaviour
     [Header("Role Indicator")]
     [SerializeField] TMP_Text roleIndicator;    // pill text, default "Role : N/A"
 
+    [Header("Actions Box")]
+    [SerializeField] GameObject actionsBox;      // drag ActionsBox here
+    [SerializeField] TMP_Text hintLabel;       // drag HintLabel
+
     /* ─────────────────────────────────────────────────────────────── */
 
     void Start()
@@ -36,16 +40,19 @@ public class GameSceneController : MonoBehaviour
 
     void OnPhaseChange(string phase, int round)
     {
+        actionsBox.SetActive(true);
         bool night = phase == "night";
 
         phaseIcon.sprite = night ? moonSprite : sunSprite;
         phaseTitle.text = night ? "Night Phase" : "Day Phase";
         dayBadgeText.text = $"Day {round}";
+
+        hintLabel.text = "Select a player to perform an action";
     }
 
     void UpdateRolePill(string role)
     {
-        roleIndicator.text = $"Role : {role}";
-        // You can tint by role colour here if you like
+        roleIndicator.text = $"     Role : {role}";
+        roleIndicator.color = Color.red;
     }
 }
