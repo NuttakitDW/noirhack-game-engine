@@ -161,6 +161,13 @@ public class NetworkManager : MonoBehaviour
                     OnDayEnd?.Invoke(lynchedId);
                     break;
                 }
+            case "gameOver":
+                {
+                    var go = JsonUtility.FromJson<GameOverEnvelope>(json);
+                    var arg = go.arguments[0];
+                    OnGameOver?.Invoke(arg.winner, arg.roles);
+                    break;
+                }
         }
     }
 
@@ -183,6 +190,7 @@ public class NetworkManager : MonoBehaviour
     public static Action<string, string> OnPeekResult;           // targetId, role
     public static Action<Dictionary<string, int>> OnVoteUpdate;
     public static Action<string> OnDayEnd;
+    public static Action<string, Dictionary<string, string>> OnGameOver;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -229,4 +237,17 @@ public class NetworkManager : MonoBehaviour
 
     [Serializable] class DayEndEnvelope { public DayEndArg[] arguments; }
     [Serializable] class DayEndArg { public string lynched; }
+    [Serializable]
+    private class GameOverEnvelope
+    {
+        public int type;
+        public string target;
+        public GameOverArg[] arguments;
+    }
+    [Serializable]
+    private class GameOverArg
+    {
+        public string winner;
+        public Dictionary<string, string> roles;
+    }
 }
