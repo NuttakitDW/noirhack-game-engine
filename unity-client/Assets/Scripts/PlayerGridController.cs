@@ -26,6 +26,7 @@ public class PlayerGridController : MonoBehaviour
 
         NetworkManager.OnRoomUpdate += Rebuild;
         NetworkManager.OnPeekResult += ApplyPeekBadge;
+        NetworkManager.OnNightEnd += HandleNightEnd;
         Rebuild();            // in case snapshot already exists
     }
 
@@ -33,6 +34,7 @@ public class PlayerGridController : MonoBehaviour
     {
         NetworkManager.OnRoomUpdate -= Rebuild;
         NetworkManager.OnPeekResult -= ApplyPeekBadge;
+        NetworkManager.OnNightEnd -= HandleNightEnd;
     }
 
     /* -------------------------------------------------------------------- */
@@ -72,6 +74,20 @@ public class PlayerGridController : MonoBehaviour
         }
     }
 
+    void HandleNightEnd(string victimId)
+    {
+        if (string.IsNullOrEmpty(victimId)) return;   // no kill tonight
+
+        foreach (Transform child in content)
+        {
+            var card = child.GetComponent<PlayerCard>();
+            if (card && card.PlayerId == victimId)
+            {
+                card.MarkDead();
+                break;
+            }
+        }
+    }
 
 
     /* -------------------------------------------------------------------- */
