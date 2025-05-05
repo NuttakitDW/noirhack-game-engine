@@ -2,60 +2,50 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// Handles phase header and role pill – no waiting overlay.
+/// </summary>
 public class GameSceneController : MonoBehaviour
 {
-    [Header("Waiting Overlay")]
-    [SerializeField] GameObject waitingPanel;
-    [SerializeField] TMP_Text waitingLabel;
-
     [Header("Phase Header")]
-    [SerializeField] Image phaseIcon;
-    [SerializeField] Sprite moonSprite;
-    [SerializeField] Sprite sunSprite;
-    [SerializeField] TMP_Text phaseTitle;
-    [SerializeField] TMP_Text dayBadgeText;
+    [SerializeField] Image phaseIcon;        // moon / sun Image
+    [SerializeField] Sprite moonSprite;       // assign in Inspector
+    [SerializeField] Sprite sunSprite;        // assign in Inspector
+    [SerializeField] TMP_Text phaseTitle;       // "Night Phase" / "Day Phase"
+    [SerializeField] TMP_Text dayBadgeText;     // "Day 1" label inside DayBadge
 
-    [Header("Role Pill")]
-    [SerializeField] TMP_Text roleIndicator;   // “Role : N/A” at start
+    [Header("Role Indicator")]
+    [SerializeField] TMP_Text roleIndicator;    // pill text, default "Role : N/A"
 
-    /* -------------------------------------------------------------- */
+    /* ─────────────────────────────────────────────────────────────── */
+
     void Start()
     {
-        UpdateWaitingLabel();                        // initial 1 / 4
-        NetworkManager.OnRoomUpdate += UpdateWaitingLabel;
-        NetworkManager.OnPhaseChange += OnPhaseChange;   // (phase, round)
-        NetworkManager.OnRole += UpdateRolePill;  // (string role)
+        // subscribe to network events
+        NetworkManager.OnPhaseChange += OnPhaseChange; // (phase, round)
+        NetworkManager.OnRole += UpdateRolePill;
     }
+
     void OnDestroy()
     {
-        NetworkManager.OnRoomUpdate -= UpdateWaitingLabel;
         NetworkManager.OnPhaseChange -= OnPhaseChange;
         NetworkManager.OnRole -= UpdateRolePill;
     }
 
-    /* -------- waiting banner -------- */
-    void UpdateWaitingLabel()
-    {
-        int total = NetworkManager.RoomState.Players.Count;
-        waitingLabel.text = $"Players in room: {total} / 4";
-    }
+    /* ─────────────────────────────────────────────────────────────── */
 
-    /* -------- phase changes -------- */
     void OnPhaseChange(string phase, int round)
     {
-        waitingPanel.SetActive(false);               // hide overlay on first phase
+        bool night = phase == "night";
 
-        bool isNight = phase == "night";
-        phaseIcon.sprite = isNight ? moonSprite : sunSprite;
-        phaseTitle.text = isNight ? "Night Phase" : "Day Phase";
+        phaseIcon.sprite = night ? moonSprite : sunSprite;
+        phaseTitle.text = night ? "Night Phase" : "Day Phase";
         dayBadgeText.text = $"Day {round}";
     }
 
-    /* -------- role pill update -------- */
     void UpdateRolePill(string role)
     {
         roleIndicator.text = $"Role : {role}";
-        // optional colour tweak
-        // roleIndicator.color = role == "Werewolf" ? wolfRed : defaultWhite;
+        // You can tint by role colour here if you like
     }
 }
