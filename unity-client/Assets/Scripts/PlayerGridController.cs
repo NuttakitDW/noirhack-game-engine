@@ -25,12 +25,14 @@ public class PlayerGridController : MonoBehaviour
             avatarPool = Resources.LoadAll<Sprite>("Avatars");
 
         NetworkManager.OnRoomUpdate += Rebuild;
+        NetworkManager.OnPeekResult += ApplyPeekBadge;
         Rebuild();            // in case snapshot already exists
     }
 
     void OnDisable()
     {
         NetworkManager.OnRoomUpdate -= Rebuild;
+        NetworkManager.OnPeekResult -= ApplyPeekBadge;
     }
 
     /* -------------------------------------------------------------------- */
@@ -56,6 +58,21 @@ public class PlayerGridController : MonoBehaviour
             }
         }
     }
+
+    void ApplyPeekBadge(string playerId, string role)
+    {
+        foreach (Transform child in content)
+        {
+            var card = child.GetComponent<PlayerCard>();
+            if (card && card.PlayerId == playerId)
+            {
+                card.ShowRole(role);              // red RoleBadge appears
+                break;
+            }
+        }
+    }
+
+
 
     /* -------------------------------------------------------------------- */
     Sprite PickAvatar(string seed)
