@@ -623,7 +623,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 5251744956290624300, guid: a40a4da4f28714a6e92bf7b8766073d0, type: 3}
+  m_Sprite: {fileID: -2126246720042785711, guid: b5b1df017748040579e4a45095d4c3ba, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -777,3 +777,5 @@ MonoBehaviour:
   nameLabel: {fileID: 27039400797835538}
   roleBadge: {fileID: 0}
   roleLabel: {fileID: 0}
+  backgroundImage: {fileID: 0}
+  deathOverlay: {fileID: 0}

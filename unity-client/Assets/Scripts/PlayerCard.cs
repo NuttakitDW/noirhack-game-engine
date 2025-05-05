@@ -9,8 +9,10 @@ public class PlayerCard : MonoBehaviour
     [SerializeField] Image outline;
     [SerializeField] Image avatarImage;
     [SerializeField] TMP_Text nameLabel;
-    [SerializeField] GameObject roleBadge;   // drag RoleBadge
-    [SerializeField] TMP_Text roleLabel;   // TMP inside RoleBadge
+    [SerializeField] GameObject roleBadge;
+    [SerializeField] TMP_Text roleLabel;
+    [SerializeField] Image backgroundImage;
+    [SerializeField] GameObject deathOverlay;
 
     Button btn;
 
@@ -40,6 +42,23 @@ public class PlayerCard : MonoBehaviour
         roleLabel.text = role;
         roleBadge.SetActive(true);
     }
+
+    public void MarkDead()
+    {
+        // greyscale the avatar
+        if (avatarImage) avatarImage.color = new Color(0.3f, 0.3f, 0.3f, 1f);
+
+        // darken background
+        if (backgroundImage) backgroundImage.color = new Color32(0x14, 0x18, 0x29, 0xFF);
+
+        // show big red X overlay
+        if (deathOverlay) deathOverlay.SetActive(true);
+
+        // prevent clicks
+        var btn = GetComponent<Button>();
+        if (btn) btn.interactable = false;
+    }
+
 
     Sprite PickAvatar(string seed, Sprite[] pool)
     {
