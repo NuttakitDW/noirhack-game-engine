@@ -406,19 +406,16 @@ impl Room {
         }
     }
     pub fn initiate_shuffle(&mut self) {
-        // 1) determine turn order (e.g. join order)
         self.shuffle_order = self.players.keys().cloned().collect();
         self.shuffle_index = 0;
 
-        // 2) prepare the WS frame
         let frame = json!({
             "type": 1,
             "target": "startShuffle",
-            "arguments": [ self.deck_state ]   // existing Vec<String>
+            "arguments": [ self.deck_state ]
         })
         .to_string();
 
-        // 3) send to the current player only
         if let Some(player_id) = self.shuffle_order.get(0) {
             if let Some(player) = self.players.get(player_id) {
                 if let Some(addr) = &player.addr {

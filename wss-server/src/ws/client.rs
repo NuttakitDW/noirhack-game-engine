@@ -61,14 +61,22 @@ impl WsClient {
                     self.room.lock().unwrap().chat(self.id.clone(), text);
                 }
                 Ok(ClientEvent::RegisterPublicKey { public_key }) => {
-                    // 1) Store the public key
                     let mut room = self.room.lock().unwrap();
                     room.register_public_key(&self.id, public_key.clone());
+
+                    let ack = ServerText(
+                        serde_json::to_string(&serde_json::json!({
+                            "type":1,
+                            "target":"publicKeyRegistered",
+                            "arguments":[{ "status":"ok" }]
+                        }))
+                        .unwrap(),
+                    );
+                    ctx.text(ack.0);
 
                     let num_players = room.players.len();
                     let num_keys = room.public_keys.len();
 
-                    // 2) If *all* players have registered, aggregate and start shuffle
                     if num_players == 4 && num_keys == 4 {
                         // call into your new util
                         let agg_pk =
@@ -81,17 +89,6 @@ impl WsClient {
                         // send startShuffle to the first player
                         room.initiate_shuffle();
                     }
-
-                    // 3) Acknowledge back to client
-                    let ack = ServerText(
-                        serde_json::to_string(&serde_json::json!({
-                            "type":1,
-                            "target":"publicKeyRegistered",
-                            "arguments":[{ "status":"ok" }]
-                        }))
-                        .unwrap(),
-                    );
-                    ctx.text(ack.0);
                 }
                 Ok(ClientEvent::ShuffleDone { deck }) => {
                     // 4.1 Lock the room
