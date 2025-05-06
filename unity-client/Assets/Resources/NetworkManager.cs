@@ -165,18 +165,52 @@ public class NetworkManager : MonoBehaviour
                 }
             case "gameOver":
                 {
-                    // parse the incoming JSON
+                    Debug.Log($"WS ← {json}");
+
+                    // 1) Pull out the winner field via JsonUtility (it works for simple types)
                     var goEnv = JsonUtility.FromJson<GameOverEnvelope>(json);
-                    if (goEnv.arguments != null && goEnv.arguments.Length > 0)
+                    if (goEnv.arguments == null || goEnv.arguments.Length == 0)
                     {
-                        var arg = goEnv.arguments[0];
-                        Debug.Log($"GameOver: winner={arg.winner}");
-                        var rolesDict = arg.roles.ToDictionary();
-                        OnGameOver?.Invoke(arg.winner, rolesDict);
+                        Debug.LogWarning("gameOver missing arguments");
+                        break;
                     }
-                    else Debug.LogWarning("gameOver missing arguments");
+                    string winner = goEnv.arguments[0].winner;
+
+                    // 2) Manually locate and parse the "roles" object
+                    var rolesDict = new Dictionary<string, string>();
+                    const string marker = "\"roles\":{";
+                    int idx = json.IndexOf(marker, StringComparison.Ordinal);
+                    if (idx >= 0)
+                    {
+                        idx += marker.Length;
+                        int end = json.IndexOf('}', idx);
+                        if (end > idx)
+                        {
+                            string body = json.Substring(idx, end - idx);
+                            // body = '"id1":"Villager","id2":"Werewolf",…'
+                            foreach (var pair in body.Split(','))
+                            {
+                                var kv = pair.Split(':');
+                                if (kv.Length == 2)
+                                {
+                                    string key = kv[0].Trim().Trim('"');
+                                    string val = kv[1].Trim().Trim('"');
+                                    rolesDict[key] = val;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning("gameOver frame: no roles object found");
+                    }
+
+                    // 3) Fire the event
+                    Debug.Log($"[NetworkManager] Parsed gameOver → winner={winner}, roles count={rolesDict.Count}");
+                    OnGameOver?.Invoke(winner, rolesDict);
                     break;
                 }
+
         }
     }
 
@@ -257,7 +291,6 @@ public class NetworkManager : MonoBehaviour
     private class GameOverArg
     {
         public string winner;
-        public SerializableDictionary roles;
     }
     [Serializable]
     private class SerializableDictionary
