@@ -19,6 +19,8 @@ pub struct Room {
     pending_night: HashMap<PlayerId, (String, String)>,
     votes: VoteMap,
     pub public_keys: HashMap<PlayerId, String>,
+    shuffle_order: Vec<PlayerId>,
+    shuffle_index: usize,
 }
 
 impl Room {
@@ -32,6 +34,8 @@ impl Room {
             pending_night: HashMap::new(),
             votes: HashMap::new(),
             public_keys: HashMap::new(),
+            shuffle_order: Vec::new(),
+            shuffle_index: 0,
         }
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
