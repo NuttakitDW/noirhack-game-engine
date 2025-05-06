@@ -21,6 +21,7 @@ pub struct Room {
     pub public_keys: HashMap<PlayerId, String>,
     shuffle_order: Vec<PlayerId>,
     shuffle_index: usize,
+    pub deck_state: Vec<String>,
 }
 
 impl Room {
@@ -36,6 +37,7 @@ impl Room {
             public_keys: HashMap::new(),
             shuffle_order: Vec::new(),
             shuffle_index: 0,
+            deck_state: Vec::new(),
         }
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
@@ -377,7 +379,6 @@ impl Room {
             }
         }
     }
-
     pub fn chat(&self, id: PlayerId, text: String) {
         println!("Room::chat id={} phase={:?}", id, self.phase);
         if self.phase == Phase::Night {
@@ -400,6 +401,28 @@ impl Room {
             if p.is_alive {
                 if let Some(addr) = &p.addr {
                     addr.do_send(ServerText(frame.clone()));
+                }
+            }
+        }
+    }
+    pub fn initiate_shuffle(&mut self) {
+        // 1) determine turn order (e.g. join order)
+        self.shuffle_order = self.players.keys().cloned().collect();
+        self.shuffle_index = 0;
+
+        // 2) prepare the WS frame
+        let frame = json!({
+            "type": 1,
+            "target": "startShuffle",
+            "arguments": [ self.deck_state ]   // existing Vec<String>
+        })
+        .to_string();
+
+        // 3) send to the current player only
+        if let Some(player_id) = self.shuffle_order.get(0) {
+            if let Some(player) = self.players.get(player_id) {
+                if let Some(addr) = &player.addr {
+                    addr.do_send(ServerText(frame));
                 }
             }
         }
