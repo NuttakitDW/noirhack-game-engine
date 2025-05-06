@@ -58,5 +58,7 @@ public class ResultSceneController : MonoBehaviour
             var go = Instantiate(roleEntryPrefab, rolesContent);
             go.GetComponent<TMP_Text>().text = $"{kv.Key}: {kv.Value}";
         }
+        Debug.Log("Loading ResultScene");
+        SceneManager.LoadScene("ResultScene");
     }
 }
