@@ -16,6 +16,7 @@ pub enum ClientEvent {
     Chat { text: String },
     NightAction { action: String, target: String },
     Vote { target: String },
+    RegisterPublicKey { public_key: String },
     RawUnknown,
 }
 
@@ -72,6 +73,16 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
                 .ok_or("vote expects a string target")?;
             Ok(ClientEvent::Vote {
                 target: tgt.to_string(),
+            })
+        }
+        "registerPublicKey" => {
+            let pk = msg
+                .arguments
+                .get(0)
+                .and_then(|v| v.as_str())
+                .ok_or("registerPublicKey expects a string public key")?;
+            Ok(ClientEvent::RegisterPublicKey {
+                public_key: pk.to_string(),
             })
         }
         _ => Ok(ClientEvent::RawUnknown),
