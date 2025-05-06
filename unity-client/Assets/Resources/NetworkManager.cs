@@ -71,17 +71,11 @@ public class NetworkManager : MonoBehaviour
 
     public void SendVote(string targetId)
     {
-        var frame = new HubMessage<VoteArg>
+        // we reuse our generic HubMessage<T> but T is string here
+        var frame = new HubMessage<string>
         {
             target = "vote",
-            arguments = new[]
-            {
-            new VoteArg
-            {
-                voter  = PlayerState.MyId,
-                target = targetId
-            }
-        }
+            arguments = new[] { targetId }
         };
         SendRaw(frame);
     }
@@ -146,14 +140,22 @@ public class NetworkManager : MonoBehaviour
             case "voteUpdate":
                 {
                     var vu = JsonUtility.FromJson<VoteUpdateEnvelope>(json);
-                    // arguments[0] is a JSON object whose keys are playerIds and values are vote counts
-                    var tally = new Dictionary<string, int>();
-                    foreach (var kv in vu.arguments[0].votes)
-                        tally[kv.playerId] = kv.count;
-                    OnVoteUpdate?.Invoke(tally);
+
+                    if (vu.arguments != null
+                     && vu.arguments.Length > 0
+                     && vu.arguments[0].votes != null)
+                    {
+                        var tally = new Dictionary<string, int>();
+                        foreach (var vc in vu.arguments[0].votes)
+                            tally[vc.playerId] = vc.count;
+                        OnVoteUpdate?.Invoke(tally);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("voteUpdate frame missing arguments or votes");
+                    }
                     break;
                 }
-
             case "dayEnd":
                 {
                     var de = JsonUtility.FromJson<DayEndEnvelope>(json);
@@ -163,9 +165,16 @@ public class NetworkManager : MonoBehaviour
                 }
             case "gameOver":
                 {
-                    var go = JsonUtility.FromJson<GameOverEnvelope>(json);
-                    var arg = go.arguments[0];
-                    OnGameOver?.Invoke(arg.winner, arg.roles);
+                    // parse the incoming JSON
+                    var goEnv = JsonUtility.FromJson<GameOverEnvelope>(json);
+                    if (goEnv.arguments != null && goEnv.arguments.Length > 0)
+                    {
+                        var arg = goEnv.arguments[0];
+                        Debug.Log($"GameOver: winner={arg.winner}");
+                        var rolesDict = arg.roles.ToDictionary();
+                        OnGameOver?.Invoke(arg.winner, rolesDict);
+                    }
+                    else Debug.LogWarning("gameOver missing arguments");
                     break;
                 }
         }
@@ -248,6 +257,22 @@ public class NetworkManager : MonoBehaviour
     private class GameOverArg
     {
         public string winner;
-        public Dictionary<string, string> roles;
+        public SerializableDictionary roles;
+    }
+    [Serializable]
+    private class SerializableDictionary
+    {
+        // Unity will fill in these two parallel arrays
+        public string[] keys;
+        public string[] values;
+
+        // helper property to turn it into a real dictionary
+        public Dictionary<string, string> ToDictionary()
+        {
+            var dict = new Dictionary<string, string>();
+            for (int i = 0; i < keys.Length; i++)
+                dict[keys[i]] = values[i];
+            return dict;
+        }
     }
 }
