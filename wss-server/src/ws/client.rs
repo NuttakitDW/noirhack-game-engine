@@ -4,6 +4,7 @@ use actix_web_actors::ws;
 use serde_json::json;
 
 use crate::utils::aggregate_public_keys;
+use crate::utils::verify_shuffle;
 use crate::{room::room::SharedRoom, types::PlayerId};
 
 pub struct WsClient {
@@ -82,56 +83,80 @@ impl WsClient {
                         let agg_pk =
                             aggregate_public_keys(&room).expect("failed to aggregate public keys");
 
-                        // put the aggregated key into deck_state (we’ll treat this as
-                        // the first “deck” for startShuffle)
-                        room.deck_state = vec![agg_pk.clone()];
+                        room.agg_pk = agg_pk.clone();
 
                         // send startShuffle to the first player
                         room.initiate_shuffle();
                     }
                 }
-                Ok(ClientEvent::ShuffleDone { deck }) => {
-                    // 4.1 Lock the room
+                Ok(ClientEvent::ShuffleDone {
+                    encrypted_deck,
+                    public_inputs,
+                    proof,
+                }) => {
+                    // 1) Lock the room
                     let mut room = self.room.lock().unwrap();
 
-                    // 4.2 Validate it’s this client’s turn
+                    // 2) Validate it’s this client’s turn
                     if room.shuffle_index >= room.shuffle_order.len()
                         || room.shuffle_order[room.shuffle_index] != self.id
                     {
                         return;
                     }
 
-                    // 4.3 Update the deck_state
-                    room.deck_state = deck.clone();
+                    // 3) Verify the proof
+                    match verify_shuffle(&public_inputs, &proof) {
+                        Ok(true) => {
+                            // 4) Proof is valid: accept the shuffle
+                            room.deck_state = encrypted_deck.clone();
+                            room.shuffle_index += 1;
 
-                    // 4.4 Advance the index
-                    room.shuffle_index += 1;
-
-                    // 4.5 Next player or complete
-                    if room.shuffle_index < room.shuffle_order.len() {
-                        let next_id = &room.shuffle_order[room.shuffle_index];
-                        if let Some(next_player) = room.players.get(next_id) {
-                            if let Some(addr) = &next_player.addr {
+                            // 5) Advance to next player or complete
+                            if room.shuffle_index < room.shuffle_order.len() {
+                                let next_id = &room.shuffle_order[room.shuffle_index];
+                                if let Some(next_player) = room.players.get(next_id) {
+                                    if let Some(addr) = &next_player.addr {
+                                        let frame = json!({
+                                            "type": 1,
+                                            "target": "startShuffle",
+                                            "arguments": [{
+                                                "agg_pk": room.agg_pk,
+                                                "deck": room.deck_state
+                                            }]
+                                        })
+                                        .to_string();
+                                        addr.do_send(ServerText(frame));
+                                    }
+                                }
+                            } else {
                                 let frame = json!({
                                     "type": 1,
-                                    "target": "startShuffle",
-                                    "arguments": [ room.deck_state ]
+                                    "target": "shuffleComplete",
+                                    "arguments": [{
+                                        "agg_pk": room.agg_pk,
+                                        "deck": room.deck_state
+                                    }]
                                 })
                                 .to_string();
-                                addr.do_send(ServerText(frame));
+                                for player in room.players.values() {
+                                    if let Some(addr) = &player.addr {
+                                        addr.do_send(ServerText(frame.clone()));
+                                    }
+                                }
                             }
                         }
-                    } else {
-                        let frame = json!({
-                            "type": 1,
-                            "target": "shuffleComplete",
-                            "arguments": [ room.deck_state ]
-                        })
-                        .to_string();
-                        for player in room.players.values() {
-                            if let Some(addr) = &player.addr {
-                                addr.do_send(ServerText(frame.clone()));
-                            }
+                        Ok(false) | Err(_) => {
+                            // 6) Proof invalid: reject
+                            let rej = ServerText(
+                                json!({
+                                    "type": 1,
+                                    "target": "shuffleRejected",
+                                    "arguments": [{ "reason": "invalid proof" }]
+                                })
+                                .to_string(),
+                            );
+                            ctx.text(rej.0);
+                            // do not advance shuffle_index or change deck_state
                         }
                     }
                 }

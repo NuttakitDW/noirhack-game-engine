@@ -1,8 +1,8 @@
 use crate::room::room::Room;
 use crate::types::PlayerId;
-use reqwest::blocking::Client;
 use serde::Deserialize;
 use serde_json::json;
+use ureq;
 
 #[derive(Debug, Deserialize)]
 struct ExecResponse {
@@ -15,6 +15,12 @@ struct ExecResponse {
 struct ExecData {
     outputs: String, // the aggregated key
     witness: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct VerifyResponse {
+    ok: bool,
+    code: u16,
 }
 
 /// Aggregate all registered public keys into one ElGamal key.
@@ -44,19 +50,41 @@ pub fn aggregate_public_keys(room: &Room) -> Result<String, Box<dyn std::error::
         }
     });
 
-    // 5. POST (blocking)
-    let client = Client::new();
-    let resp = client
-        .post("http://localhost:3000/execute")
-        .json(&payload)
-        .send()?
-        .error_for_status()?; // fail on non-2xx
+    // Send the request and read the body as a String
+    let resp = ureq::post("http://localhost:3000/execute")
+        .set("Content-Type", "application/json")
+        .send_string(&payload.to_string())?;
+    let body = resp.into_string()?;
 
-    // 6. parse
-    let exec: ExecResponse = resp.json()?;
+    // Parse the JSON response
+    let exec: ExecResponse = serde_json::from_str(&body)?;
     if !exec.ok {
         Err(format!("Circuit execution failed: {:?}", exec).into())
     } else {
         Ok(exec.data.outputs)
     }
+}
+
+pub fn verify_shuffle(
+    public_inputs: &[String],
+    proof: &str,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    // 1) build the JSON payload
+    let payload = json!({
+        "circuit_name": "shuffle4",
+        "data": {
+            "public_inputs": public_inputs,
+            "proof": proof
+        }
+    });
+
+    // Send the request and read the body as a String
+    let resp = ureq::post("http://localhost:3000/verify")
+        .set("Content-Type", "application/json")
+        .send_string(&payload.to_string())?;
+    let body = resp.into_string()?;
+
+    // Parse the JSON response
+    let v: VerifyResponse = serde_json::from_str(&body)?;
+    Ok(v.ok)
 }

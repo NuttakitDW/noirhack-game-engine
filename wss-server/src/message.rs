@@ -11,13 +11,28 @@ pub struct Incoming {
 
 #[derive(Debug)]
 pub enum ClientEvent {
-    Join { name: String },
+    Join {
+        name: String,
+    },
     Ready(bool),
-    Chat { text: String },
-    NightAction { action: String, target: String },
-    Vote { target: String },
-    RegisterPublicKey { public_key: String },
-    ShuffleDone { deck: Vec<String> },
+    Chat {
+        text: String,
+    },
+    NightAction {
+        action: String,
+        target: String,
+    },
+    Vote {
+        target: String,
+    },
+    RegisterPublicKey {
+        public_key: String,
+    },
+    ShuffleDone {
+        encrypted_deck: Vec<[String; 2]>,
+        public_inputs: Vec<String>,
+        proof: String,
+    },
     RawUnknown,
 }
 
@@ -87,16 +102,50 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             })
         }
         "shuffleDone" => {
-            let arr = msg
+            // arguments[0] is expected to be an object with three fields
+            let obj = msg
                 .arguments
                 .get(0)
+                .and_then(|v| v.as_object())
+                .ok_or("shuffleDone expects an object payload")?;
+
+            // 1) encrypted_deck: array of [flag, role] pairs
+            let enc = obj
+                .get("encrypted_deck")
                 .and_then(|v| v.as_array())
-                .ok_or("shuffleDone expects an array of strings")?;
-            let deck: Vec<String> = arr
+                .ok_or("shuffleDone.encrypted_deck missing or not an array")?;
+            let encrypted_deck: Vec<[String; 2]> = enc
                 .iter()
-                .map(|val| val.as_str().unwrap_or_default().to_string())
+                .map(|entry| {
+                    let arr = entry
+                        .as_array()
+                        .expect("each deck entry must be a 2-element array");
+                    let a = arr[0].as_str().unwrap().to_string();
+                    let b = arr[1].as_str().unwrap().to_string();
+                    [a, b]
+                })
                 .collect();
-            Ok(ClientEvent::ShuffleDone { deck })
+
+            // 2) public_inputs: array of hex strings
+            let pi = obj
+                .get("public_inputs")
+                .and_then(|v| v.as_array())
+                .ok_or("shuffleDone.public_inputs missing or not an array")?;
+            let public_inputs: Vec<String> =
+                pi.iter().map(|v| v.as_str().unwrap().to_string()).collect();
+
+            // 3) proof: single string
+            let proof = obj
+                .get("proof")
+                .and_then(|v| v.as_str())
+                .ok_or("shuffleDone.proof missing or not a string")?
+                .to_string();
+
+            Ok(ClientEvent::ShuffleDone {
+                encrypted_deck,
+                public_inputs,
+                proof,
+            })
         }
         _ => Ok(ClientEvent::RawUnknown),
     }

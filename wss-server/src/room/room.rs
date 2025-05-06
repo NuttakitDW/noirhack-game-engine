@@ -21,7 +21,8 @@ pub struct Room {
     pub public_keys: HashMap<PlayerId, String>,
     pub shuffle_order: Vec<PlayerId>,
     pub shuffle_index: usize,
-    pub deck_state: Vec<String>,
+    pub agg_pk: String,
+    pub deck_state: Vec<[String; 2]>,
 }
 
 impl Room {
@@ -37,7 +38,13 @@ impl Room {
             public_keys: HashMap::new(),
             shuffle_order: Vec::new(),
             shuffle_index: 0,
-            deck_state: Vec::new(),
+            agg_pk: String::new(),
+            deck_state: vec![
+                ["1".into(), "0".into()], // Wolf
+                ["1".into(), "1".into()], // Seer
+                ["1".into(), "2".into()], // Villager
+                ["1".into(), "2".into()], // Villager
+            ],
         }
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
@@ -412,7 +419,10 @@ impl Room {
         let frame = json!({
             "type": 1,
             "target": "startShuffle",
-            "arguments": [ self.deck_state ]
+            "arguments": [{
+                "agg_pk":   self.agg_pk,
+                "deck":     self.deck_state
+            }]
         })
         .to_string();
 
