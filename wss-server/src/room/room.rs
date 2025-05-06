@@ -18,6 +18,7 @@ pub struct Room {
     game_started: bool,
     pending_night: HashMap<PlayerId, (String, String)>,
     votes: VoteMap,
+    public_keys: HashMap<PlayerId, String>,
 }
 
 impl Room {
@@ -30,7 +31,13 @@ impl Room {
             game_started: false,
             pending_night: HashMap::new(),
             votes: HashMap::new(),
+            public_keys: HashMap::new(),
         }
+    }
+    pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
+        // you can log here to debug:
+        println!("Room::register_public_key id={} pk={}", player_id, pk);
+        self.public_keys.insert(player_id.clone(), pk);
     }
 
     pub fn add_player(&mut self, id: PlayerId, name: String, addr: Addr<WsClient>) {
