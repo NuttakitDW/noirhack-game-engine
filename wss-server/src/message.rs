@@ -17,6 +17,7 @@ pub enum ClientEvent {
     NightAction { action: String, target: String },
     Vote { target: String },
     RegisterPublicKey { public_key: String },
+    ShuffleDone { deck: Vec<String> },
     RawUnknown,
 }
 
@@ -84,6 +85,18 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             Ok(ClientEvent::RegisterPublicKey {
                 public_key: pk.to_string(),
             })
+        }
+        "shuffleDone" => {
+            let arr = msg
+                .arguments
+                .get(0)
+                .and_then(|v| v.as_array())
+                .ok_or("shuffleDone expects an array of strings")?;
+            let deck: Vec<String> = arr
+                .iter()
+                .map(|val| val.as_str().unwrap_or_default().to_string())
+                .collect();
+            Ok(ClientEvent::ShuffleDone { deck })
         }
         _ => Ok(ClientEvent::RawUnknown),
     }
