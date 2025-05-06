@@ -13,7 +13,7 @@ public class NetworkManager : MonoBehaviour
     public static NetworkManager Instance { get; private set; }
     public static Action<string> OnNightEnd;
     public static string LastWinner { get; private set; }
-    WebSocket ws;
+    public WebSocket ws;
 
     void Awake()
     {
@@ -112,6 +112,15 @@ public class NetworkManager : MonoBehaviour
     {
         string json = System.Text.Encoding.UTF8.GetString(data);
         Debug.Log($"WS ← {json}");
+
+        if (json.Contains("\"target\":\"startShuffle\""))
+        {
+            // Parse into our generic frame type
+            var frame = JsonUtility.FromJson<IncomingFrame<StartShufflePayload>>(json);
+            var payload = frame.arguments[0];
+            OnStartShuffle?.Invoke(payload);
+            return;  // skip the rest of HandleMessage
+        }
 
         // Fast path: lobby snapshot comes only once per join/update
         if (json.Contains("\"target\":\"lobby\""))
@@ -254,6 +263,7 @@ public class NetworkManager : MonoBehaviour
     public static Action<Dictionary<string, int>> OnVoteUpdate;
     public static Action<string> OnDayEnd;
     public static Action<string, Dictionary<string, string>> OnGameOver;
+    public static Action<StartShufflePayload> OnStartShuffle;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -330,4 +340,27 @@ public class NetworkManager : MonoBehaviour
     }
     [Serializable]
     class PubKeyArg { public string publicKey; }
+
+    [Serializable]
+    public class StartShufflePayload
+    {
+        public string agg_pk;
+        public List<string[]> deck;
+    }
+
+    [Serializable]
+    public class IncomingFrame<T>
+    {
+        public int type;
+        public string target;
+        public T[] arguments;
+    }
+
+    [Serializable]
+    public class ShuffleDonePayload
+    {
+        public List<string[]> encrypted_deck;
+        public List<string> public_inputs;
+        public string proof;
+    }
 }
