@@ -2,6 +2,7 @@ use actix::AsyncContext;
 use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
 use actix_web_actors::ws;
 
+use crate::utils::aggregate_public_keys;
 use crate::{room::room::SharedRoom, types::PlayerId};
 
 pub struct WsClient {
@@ -59,23 +60,36 @@ impl WsClient {
                     self.room.lock().unwrap().chat(self.id.clone(), text);
                 }
                 Ok(ClientEvent::RegisterPublicKey { public_key }) => {
-                    // Store the received public key for this player
-                    self.room
-                        .lock()
-                        .unwrap()
-                        .register_public_key(&self.id, public_key.clone());
+                    // 1) Store the public key
+                    let mut room = self.room.lock().unwrap();
+                    room.register_public_key(&self.id, public_key.clone());
 
-                    // Send acknowledgement back to client
+                    // 2) If *all* players have registered, aggregate and start shuffle
+                    if room.public_keys.len() == room.players.len() {
+                        // call into your new util
+                        let agg_pk =
+                            aggregate_public_keys(&room).expect("failed to aggregate public keys");
+
+                        // put the aggregated key into deck_state (we’ll treat this as
+                        // the first “deck” for startShuffle)
+                        room.deck_state = vec![agg_pk.clone()];
+
+                        // send startShuffle to the first player
+                        room.initiate_shuffle();
+                    }
+
+                    // 3) Acknowledge back to client
                     let ack = ServerText(
                         serde_json::to_string(&serde_json::json!({
-                            "type": 1,
-                            "target": "publicKeyRegistered",
-                            "arguments": [{ "status": "ok" }]
+                            "type":1,
+                            "target":"publicKeyRegistered",
+                            "arguments":[{ "status":"ok" }]
                         }))
                         .unwrap(),
                     );
                     ctx.text(ack.0);
                 }
+
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }
