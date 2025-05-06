@@ -11,6 +11,7 @@ public class NetworkManager : MonoBehaviour
     /*───────────────────────── Singleton ─────────────────────────*/
     public static NetworkManager Instance { get; private set; }
     public static Action<string> OnNightEnd;
+    public static string LastWinner { get; private set; }
     WebSocket ws;
 
     void Awake()
@@ -207,6 +208,7 @@ public class NetworkManager : MonoBehaviour
 
                     // 3) Fire the event
                     Debug.Log($"[NetworkManager] Parsed gameOver → winner={winner}, roles count={rolesDict.Count}");
+                    LastWinner = winner;
                     OnGameOver?.Invoke(winner, rolesDict);
                     break;
                 }
