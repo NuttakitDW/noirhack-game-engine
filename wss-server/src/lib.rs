@@ -2,6 +2,7 @@ pub mod game;
 pub mod message;
 pub mod room;
 pub mod types;
+mod utils;
 pub mod ws;
 
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};

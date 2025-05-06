@@ -12,13 +12,13 @@ use crate::{
 pub type SharedRoom = Arc<Mutex<Room>>;
 
 pub struct Room {
-    players: HashMap<PlayerId, Player>,
+    pub players: HashMap<PlayerId, Player>,
     phase: Phase,
     round: u32,
     game_started: bool,
     pending_night: HashMap<PlayerId, (String, String)>,
     votes: VoteMap,
-    public_keys: HashMap<PlayerId, String>,
+    pub public_keys: HashMap<PlayerId, String>,
 }
 
 impl Room {
