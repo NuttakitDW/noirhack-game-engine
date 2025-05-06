@@ -3,6 +3,7 @@ mod game;
 mod message;
 mod room;
 mod types;
+mod utils;
 mod ws;
 
 use actix_web::web::Data;
