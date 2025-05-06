@@ -1,6 +1,7 @@
 use actix::AsyncContext;
 use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
 use actix_web_actors::ws;
+use serde_json::json;
 
 use crate::utils::aggregate_public_keys;
 use crate::{room::room::SharedRoom, types::PlayerId};
@@ -64,8 +65,11 @@ impl WsClient {
                     let mut room = self.room.lock().unwrap();
                     room.register_public_key(&self.id, public_key.clone());
 
+                    let num_players = room.players.len();
+                    let num_keys = room.public_keys.len();
+
                     // 2) If *all* players have registered, aggregate and start shuffle
-                    if room.public_keys.len() == room.players.len() {
+                    if num_players == 4 && num_keys == 4 {
                         // call into your new util
                         let agg_pk =
                             aggregate_public_keys(&room).expect("failed to aggregate public keys");
@@ -89,7 +93,51 @@ impl WsClient {
                     );
                     ctx.text(ack.0);
                 }
+                Ok(ClientEvent::ShuffleDone { deck }) => {
+                    // 4.1 Lock the room
+                    let mut room = self.room.lock().unwrap();
 
+                    // 4.2 Validate it’s this client’s turn
+                    if room.shuffle_index >= room.shuffle_order.len()
+                        || room.shuffle_order[room.shuffle_index] != self.id
+                    {
+                        return;
+                    }
+
+                    // 4.3 Update the deck_state
+                    room.deck_state = deck.clone();
+
+                    // 4.4 Advance the index
+                    room.shuffle_index += 1;
+
+                    // 4.5 Next player or complete
+                    if room.shuffle_index < room.shuffle_order.len() {
+                        let next_id = &room.shuffle_order[room.shuffle_index];
+                        if let Some(next_player) = room.players.get(next_id) {
+                            if let Some(addr) = &next_player.addr {
+                                let frame = json!({
+                                    "type": 1,
+                                    "target": "startShuffle",
+                                    "arguments": [ room.deck_state ]
+                                })
+                                .to_string();
+                                addr.do_send(ServerText(frame));
+                            }
+                        }
+                    } else {
+                        let frame = json!({
+                            "type": 1,
+                            "target": "shuffleComplete",
+                            "arguments": [ room.deck_state ]
+                        })
+                        .to_string();
+                        for player in room.players.values() {
+                            if let Some(addr) = &player.addr {
+                                addr.do_send(ServerText(frame.clone()));
+                            }
+                        }
+                    }
+                }
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }

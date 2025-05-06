@@ -19,8 +19,8 @@ pub struct Room {
     pending_night: HashMap<PlayerId, (String, String)>,
     votes: VoteMap,
     pub public_keys: HashMap<PlayerId, String>,
-    shuffle_order: Vec<PlayerId>,
-    shuffle_index: usize,
+    pub shuffle_order: Vec<PlayerId>,
+    pub shuffle_index: usize,
     pub deck_state: Vec<String>,
 }
 
