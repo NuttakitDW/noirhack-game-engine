@@ -58,6 +58,24 @@ impl WsClient {
                 Ok(ClientEvent::Chat { text }) => {
                     self.room.lock().unwrap().chat(self.id.clone(), text);
                 }
+                Ok(ClientEvent::RegisterPublicKey { public_key }) => {
+                    // Store the received public key for this player
+                    self.room
+                        .lock()
+                        .unwrap()
+                        .register_public_key(&self.id, public_key.clone());
+
+                    // Send acknowledgement back to client
+                    let ack = ServerText(
+                        serde_json::to_string(&serde_json::json!({
+                            "type": 1,
+                            "target": "publicKeyRegistered",
+                            "arguments": [{ "status": "ok" }]
+                        }))
+                        .unwrap(),
+                    );
+                    ctx.text(ack.0);
+                }
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }
