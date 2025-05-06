@@ -1,5 +1,6 @@
 // Assets/Resources/NetworkManager.cs   (singleton across scenes)
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using NativeWebSocket;
@@ -26,6 +27,16 @@ public class NetworkManager : MonoBehaviour
     /*───────────────────────── Connect / join ────────────────────*/
     string myName;
 
+    private IEnumerator FetchKeysThenEnterGame()
+    {
+        // 1) fire off HTTP request
+        yield return KeyPairStore.Instance.FetchKeyPair();
+
+        // 2) once we have pk/sk, load the GameScene
+        SceneManager.LoadScene("GameScene");
+    }
+
+
     public async void Connect(string url, string playerName)
     {
         myName = playerName;
@@ -42,15 +53,11 @@ public class NetworkManager : MonoBehaviour
         {
             Debug.Log("WS → OPEN");
 
-            SendRaw(new HubMessage<JoinArg>
-            {
-                target = "join",
-                arguments = new[] { new JoinArg { name = playerName } }
-            });
-
+            SendRaw(new HubMessage<JoinArg> { /*…*/ });
             SendRaw(new ReadyFrame(true));
 
-            SceneManager.LoadScene("GameScene");
+            // start our coroutine instead of immediate LoadScene
+            StartCoroutine(FetchKeysThenEnterGame());
         };
         ws.OnError += e => Debug.LogError($"WS ERROR {e}");
         ws.OnClose += c => Debug.Log($"WS CLOSE  {c}");
