@@ -29,12 +29,23 @@ public class NetworkManager : MonoBehaviour
 
     private IEnumerator FetchKeysThenEnterGame()
     {
-        // 1) fire off HTTP request
+        // 1) Fetch the HTTP keypair
         yield return KeyPairStore.Instance.FetchKeyPair();
 
-        // 2) once we have pk/sk, load the GameScene
+        // 2) Register our public key with the server
+        var pk = KeyPairStore.Instance.PublicKey;
+        var frame = new HubMessage<PubKeyArg>
+        {
+            target = "registerPublicKey",
+            arguments = new[] { new PubKeyArg { publicKey = pk } }
+        };
+        // SendRaw is async void, but that's fine here:
+        SendRaw(frame);
+
+        // 3) Now load the GameScene
         SceneManager.LoadScene("GameScene");
     }
+
 
 
     public async void Connect(string url, string playerName)
@@ -317,4 +328,6 @@ public class NetworkManager : MonoBehaviour
             return dict;
         }
     }
+    [Serializable]
+    class PubKeyArg { public string publicKey; }
 }
