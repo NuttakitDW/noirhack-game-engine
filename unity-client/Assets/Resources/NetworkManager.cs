@@ -118,15 +118,6 @@ public class NetworkManager : MonoBehaviour
         string json = System.Text.Encoding.UTF8.GetString(data);
         Debug.Log($"WS ← {json}");
 
-        if (json.Contains("\"target\":\"startShuffle\""))
-        {
-            var frame = JsonUtility.FromJson<IncomingFrame<StartShufflePayload>>(json);
-            var payload = frame.arguments[0];
-            Debug.Log($"[Network] startShuffle event fired, listeners = {OnStartShuffle?.GetInvocationList().Length ?? 0}");
-            OnStartShuffle?.Invoke(payload);
-            return;
-        }
-
         if (json.Contains("\"target\":\"lobby\""))
         {
             var lob = JsonUtility.FromJson<LobbyEnvelope>(json);
@@ -267,7 +258,6 @@ public class NetworkManager : MonoBehaviour
     public static Action<Dictionary<string, int>> OnVoteUpdate;
     public static Action<string> OnDayEnd;
     public static Action<string, Dictionary<string, string>> OnGameOver;
-    public static Action<StartShufflePayload> OnStartShuffle;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -346,25 +336,10 @@ public class NetworkManager : MonoBehaviour
     class PubKeyArg { public string publicKey; }
 
     [Serializable]
-    public class StartShufflePayload
-    {
-        public string agg_pk;
-        public List<string[]> deck;
-    }
-
-    [Serializable]
     public class IncomingFrame<T>
     {
         public int type;
         public string target;
         public T[] arguments;
-    }
-
-    [Serializable]
-    public class ShuffleDonePayload
-    {
-        public List<string[]> encrypted_deck;
-        public List<string> public_inputs;
-        public string proof;
     }
 }
