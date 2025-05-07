@@ -120,14 +120,13 @@ public class NetworkManager : MonoBehaviour
 
         if (json.Contains("\"target\":\"startShuffle\""))
         {
-            // Parse into our generic frame type
             var frame = JsonUtility.FromJson<IncomingFrame<StartShufflePayload>>(json);
             var payload = frame.arguments[0];
+            Debug.Log($"[Network] startShuffle event fired, listeners = {OnStartShuffle?.GetInvocationList().Length ?? 0}");
             OnStartShuffle?.Invoke(payload);
-            return;  // skip the rest of HandleMessage
+            return;
         }
 
-        // Fast path: lobby snapshot comes only once per join/update
         if (json.Contains("\"target\":\"lobby\""))
         {
             var lob = JsonUtility.FromJson<LobbyEnvelope>(json);

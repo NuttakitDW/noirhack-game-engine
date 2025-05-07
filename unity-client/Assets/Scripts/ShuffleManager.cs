@@ -34,6 +34,12 @@ public class ShuffleManager : MonoBehaviour
 
     private IEnumerator PerformShuffleCoroutine(NetworkManager.StartShufflePayload p)
     {
+        if (p.deck == null || p.deck.Count == 0)
+        {
+            Debug.LogError("Shuffle payload missing deck data -> abort");
+            yield break;
+        }
+
         int n = p.deck.Count;
 
         // 1. Generate rand – one random 6-digit string per card
@@ -166,7 +172,7 @@ public class ShuffleManager : MonoBehaviour
     [Serializable]
     private class ProveOutputs
     {
-        public List<string[]> shuffledDeck;
+        public List<List<string>> shuffledDeck;
     }
 
     [Serializable]
