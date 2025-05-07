@@ -222,7 +222,11 @@ TextureImporter:
     secondaryTextures: []
     spriteCustomMetadata:
       entries: []
-    nameFileIdTable: {}
+    nameFileIdTable:
+      sand_clock_0: -2802162908758620845
+      sand_clock_1: -777029392042515813
+      sand_clock_2: -2295540014814765923
+      sand_clock_3: 5678012260803946584
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
