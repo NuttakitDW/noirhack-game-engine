@@ -24,37 +24,35 @@ public class KeyPairStore : MonoBehaviour
     /// </summary>
     public IEnumerator FetchKeyPair()
     {
-        // 1. generate random 6-digit r
-        var r = UnityEngine.Random.Range(100000, 1000000).ToString();
+        // 1. six-digit random r (keeps leading zeros)
+        string r = UnityEngine.Random.Range(0, 1_000_000).ToString("D6");
 
-        // 2. build JSON payload
-        var payload = JsonUtility.ToJson(new
+        // 2. build a strongly-typed payload
+        var payload = new KeyPairRequest
         {
             circuit_name = "genElgamalKeyPair",
-            data = new { g = "3", r = r }
-        });
+            data = new KeyPairData { g = "3", r = r }
+        };
+        string bodyJson = JsonUtility.ToJson(payload);
 
-        // 3. POST to API
+        // 3. POST
         using var www = new UnityWebRequest("http://localhost:3000/execute", "POST");
-        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(payload);
-        www.uploadHandler = new UploadHandlerRaw(bodyRaw);
+        www.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(bodyJson));
         www.downloadHandler = new DownloadHandlerBuffer();
         www.SetRequestHeader("Content-Type", "application/json");
-
         yield return www.SendWebRequest();
+
         if (www.result != UnityWebRequest.Result.Success)
         {
             Debug.LogError($"KeyPairStore.FetchKeyPair failed: {www.error}");
             yield break;
         }
 
-        // 4. parse
         var resp = JsonUtility.FromJson<KeyPairResponse>(www.downloadHandler.text);
         PublicKey = resp.data.outputs.pk;
         _secretKey = resp.data.outputs.sk;
-        Debug.Log($"[KeyPairStore] Received pk={PublicKey} sk={_secretKey}");
+        Debug.Log($"[KeyPairStore] pk={PublicKey} sk={_secretKey}");
     }
-
     /// <summary>Retrieve the secret for proofs.</summary>
     public string GetSecretKey() => _secretKey;
 
@@ -79,4 +77,19 @@ public class KeyPairStore : MonoBehaviour
         public string sk;
         public string pk;
     }
+
+    #region DTOs
+    [Serializable]
+    private class KeyPairRequest
+    {
+        public string circuit_name;
+        public KeyPairData data;
+    }
+    [Serializable]
+    private class KeyPairData
+    {
+        public string g;
+        public string r;
+    }
+    #endregion
 }

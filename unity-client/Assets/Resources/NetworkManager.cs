@@ -34,10 +34,10 @@ public class NetworkManager : MonoBehaviour
 
         // 2) Register our public key with the server
         var pk = KeyPairStore.Instance.PublicKey;
-        var frame = new HubMessage<PubKeyArg>
+        var frame = new HubMessage<string>
         {
             target = "registerPublicKey",
-            arguments = new[] { new PubKeyArg { publicKey = pk } }
+            arguments = new[] { pk }   // send the raw string
         };
         // SendRaw is async void, but that's fine here:
         SendRaw(frame);
@@ -64,7 +64,12 @@ public class NetworkManager : MonoBehaviour
         {
             Debug.Log("WS → OPEN");
 
-            SendRaw(new HubMessage<JoinArg> { /*…*/ });
+            var joinFrame = new HubMessage<JoinArg>
+            {
+                target = "join",
+                arguments = new[] { new JoinArg { name = playerName } }
+            };
+            SendRaw(joinFrame);
             SendRaw(new ReadyFrame(true));
 
             // start our coroutine instead of immediate LoadScene
