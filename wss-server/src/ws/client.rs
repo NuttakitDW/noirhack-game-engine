@@ -79,13 +79,14 @@ impl WsClient {
                     let num_keys = room.public_keys.len();
 
                     if num_players == 4 && num_keys == 4 {
-                        // call into your new util
+                        print!("Client::All players registered their public keys.");
+                        println!("Client::Aggregating public keys...");
                         let agg_pk =
                             aggregate_public_keys(&room).expect("failed to aggregate public keys");
 
                         room.agg_pk = agg_pk.clone();
-
-                        // send startShuffle to the first player
+                        println!("Client::Public keys aggregated. agg_pk: {:?}", agg_pk);
+                        println!("Client::Starting shuffle...");
                         room.initiate_shuffle();
                     }
                 }
@@ -95,6 +96,7 @@ impl WsClient {
                     proof,
                 }) => {
                     // 1) Lock the room
+                    print!("Client::ShuffleDone: Locking room...");
                     let mut room = self.room.lock().unwrap();
 
                     // 2) Validate it’s this client’s turn
@@ -105,13 +107,13 @@ impl WsClient {
                     }
 
                     // 3) Verify the proof
+                    print!("Client::ShuffleDone: Verifying proof...");
                     match verify_shuffle(&public_inputs, &proof) {
                         Ok(true) => {
-                            // 4) Proof is valid: accept the shuffle
+                            print!("Client::ShuffleDone: Proof valid. Updating deck...");
                             room.deck_state = encrypted_deck.clone();
                             room.shuffle_index += 1;
 
-                            // 5) Advance to next player or complete
                             if room.shuffle_index < room.shuffle_order.len() {
                                 let next_id = &room.shuffle_order[room.shuffle_index];
                                 if let Some(next_player) = room.players.get(next_id) {
@@ -125,6 +127,7 @@ impl WsClient {
                                             }]
                                         })
                                         .to_string();
+                                        print!("Client::ShuffleDone: Sending startShuffle to player {}...", next_player.id);
                                         addr.do_send(ServerText(frame));
                                     }
                                 }
@@ -140,6 +143,7 @@ impl WsClient {
                                 .to_string();
                                 for player in room.players.values() {
                                     if let Some(addr) = &player.addr {
+                                        print!("Client::ShuffleDone: Sending shuffleComplete to player {}...", player.id);
                                         addr.do_send(ServerText(frame.clone()));
                                     }
                                 }
