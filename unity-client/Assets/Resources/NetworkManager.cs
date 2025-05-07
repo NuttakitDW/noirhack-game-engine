@@ -11,7 +11,6 @@ public class NetworkManager : MonoBehaviour
 {
     /*───────────────────────── Singleton ─────────────────────────*/
     public static NetworkManager Instance { get; private set; }
-    public static Action<string> OnNightEnd;
     public static string LastWinner { get; private set; }
     public WebSocket ws;
 
@@ -135,6 +134,24 @@ public class NetworkManager : MonoBehaviour
 
         switch (env.target)
         {
+            case "startShuffle":
+                {
+                    var shufEnv = JsonUtility.FromJson<IncomingFrame<StartShufflePayload>>(json);
+
+                    if (shufEnv.arguments == null || shufEnv.arguments.Length == 0)
+                    {
+                        Debug.LogWarning("startShuffle frame missing arguments");
+                        break;
+                    }
+
+                    var payload = shufEnv.arguments[0];
+
+                    int cnt = OnStartShuffle?.GetInvocationList().Length ?? 0;
+                    Debug.Log($"[Network] startShuffle fired, listeners = {cnt}");
+
+                    OnStartShuffle?.Invoke(payload);
+                    break;
+                }
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
@@ -251,13 +268,15 @@ public class NetworkManager : MonoBehaviour
     }
 
     /*───────────────────────── Events ────────────────────────────*/
-    public static Action OnRoomUpdate;                 // lobby changed
-    public static Action<string, int> OnPhaseChange;             // phase, round
-    public static Action<string> OnRole;                       // my role
-    public static Action<string, string> OnPeekResult;           // targetId, role
+    public static Action OnRoomUpdate;
+    public static Action<string, int> OnPhaseChange;
+    public static Action<string> OnRole;
+    public static Action<string, string> OnPeekResult;
     public static Action<Dictionary<string, int>> OnVoteUpdate;
     public static Action<string> OnDayEnd;
     public static Action<string, Dictionary<string, string>> OnGameOver;
+    public static Action<string> OnNightEnd;
+    public static event Action<StartShufflePayload> OnStartShuffle;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -341,5 +360,12 @@ public class NetworkManager : MonoBehaviour
         public int type;
         public string target;
         public T[] arguments;
+    }
+
+    [Serializable]
+    public class StartShufflePayload
+    {
+        public string agg_pk;
+        public List<List<string>> deck;   // adjust field names if server differs
     }
 }
