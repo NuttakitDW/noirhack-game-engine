@@ -102,16 +102,17 @@ impl Room {
     }
 
     fn try_start(&mut self) {
+        let ready_count = self.players.values().filter(|p| p.is_ready).count();
+        let key_count = self.public_keys.len();
+        let expected = 4;
         println!(
-            "Room::try_start game_started={} ready_count={}",
-            self.game_started,
-            self.players.values().filter(|p| p.is_ready).count()
+            "Room::try_start game_started={} ready_count={} key_count={}",
+            self.game_started, ready_count, key_count
         );
         if self.game_started {
             return;
         }
-        let ready_count = self.players.values().filter(|p| p.is_ready).count();
-        if ready_count == 4 {
+        if !self.game_started && ready_count == expected && key_count == expected {
             self.game_started = true;
             self.start_game();
         }
@@ -413,7 +414,12 @@ impl Room {
         }
     }
     pub fn initiate_shuffle(&mut self) {
+        println!("Room::initiate_shuffle");
         self.shuffle_order = self.players.keys().cloned().collect();
+        println!(
+            "Room::initiate_shuffle shuffle_order = {:?}",
+            self.shuffle_order
+        );
         self.shuffle_index = 0;
 
         let frame = json!({
@@ -427,8 +433,14 @@ impl Room {
         .to_string();
 
         if let Some(player_id) = self.shuffle_order.get(0) {
+            println!(
+                "Room::initiate_shuffle sending startShuffle to player {}...",
+                player_id
+            );
             if let Some(player) = self.players.get(player_id) {
+                println!("Room::initiate_shuffle player found");
                 if let Some(addr) = &player.addr {
+                    println!("Room::initiate_shuffle sending frame");
                     addr.do_send(ServerText(frame));
                 }
             }
