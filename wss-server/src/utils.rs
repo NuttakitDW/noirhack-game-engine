@@ -13,7 +13,7 @@ struct ExecResponse {
 
 #[derive(Debug, Deserialize)]
 struct ExecData {
-    outputs: String, // the aggregated key
+    outputs: String,
     witness: String,
 }
 
