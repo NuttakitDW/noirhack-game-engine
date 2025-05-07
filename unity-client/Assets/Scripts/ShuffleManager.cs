@@ -13,19 +13,17 @@ using UnityEngine.Networking;
 /// </summary>
 public class ShuffleManager : MonoBehaviour
 {
-    private void OnEnable()
+    void Awake()
     {
+        DontDestroyOnLoad(gameObject);
         NetworkManager.OnStartShuffle += HandleStartShuffle;
     }
 
-    private void OnDisable()
+    void OnDestroy()
     {
         NetworkManager.OnStartShuffle -= HandleStartShuffle;
     }
 
-    /// <summary>
-    /// Invoked when the server sends a startShuffle message.
-    /// </summary>
     private void HandleStartShuffle(NetworkManager.StartShufflePayload payload)
     {
         Debug.Log("StartShuffle received – beginning /prove call");
