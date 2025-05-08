@@ -163,7 +163,6 @@ impl WsClient {
                                     {
                                         addr.do_send(crate::ws::client::ServerText(frame.clone()));
                                     }
-                                    room.try_start();
                                 }
                             }
 
