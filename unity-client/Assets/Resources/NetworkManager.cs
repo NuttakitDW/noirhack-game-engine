@@ -128,8 +128,6 @@ public class NetworkManager : MonoBehaviour
     void HandleShuffleComplete(ShuffleCompletePayload p)
     {
         PlayerState.EncryptedDeck = p.deck;
-
-        // ----- auto-pick a random index 0–3 -----
         int idx = UnityEngine.Random.Range(0, 4);
         PlayerState.MyCardIndex = idx;
         SendPickCard(idx);
@@ -190,6 +188,25 @@ public class NetworkManager : MonoBehaviour
 
                     Debug.Log($"[Network] shuffleComplete: deck rows = {payload.deck.Count}");
                     OnShuffleComplete?.Invoke(payload);
+                    break;
+                }
+            case "cardTaken":
+                {
+                    var cardEnv = JsonConvert.DeserializeObject<
+                                 IncomingFrame<CardTakenPayload>>(json);
+
+                    var pay = cardEnv?.arguments?[0];
+                    if (pay == null) break;
+
+                    Debug.Log($"[Pick] server replied {pay.status} for card {pay.card}");
+
+                    // keep a local set so we don’t retry a taken index
+                    if (pay.status == "ok")
+                        PlayerState.MyCardIndex = pay.card;
+                    else                          // denied
+                        PlayerState.TakenIndices.Add(pay.card);
+
+                    OnCardTaken?.Invoke(pay);
                     break;
                 }
             case "phase":
@@ -307,6 +324,7 @@ public class NetworkManager : MonoBehaviour
         public static string Role;
         public static List<string[]> EncryptedDeck = new();
         public static int? MyCardIndex;
+        public static readonly HashSet<int> TakenIndices = new();
     }
     public static string LastWinner { get; private set; }
 
@@ -321,6 +339,7 @@ public class NetworkManager : MonoBehaviour
     public static Action<string> OnNightEnd;
     public static event Action<StartShufflePayload> OnStartShuffle;
     public static event Action<ShuffleCompletePayload> OnShuffleComplete;
+    public static event Action<CardTakenPayload> OnCardTaken;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -438,5 +457,11 @@ public class NetworkManager : MonoBehaviour
     public class ShuffleCompletePayload
     {
         public List<string[]> deck;
+    }
+    [Serializable]
+    public class CardTakenPayload
+    {
+        public string status;   // "ok" or "denied"
+        public int card;     // index 0-3
     }
 }
