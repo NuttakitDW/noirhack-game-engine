@@ -129,7 +129,6 @@ impl WsClient {
                                 room.deck_state = deck;
                                 room.shuffle_index += 1;
 
-                                /* helper for frames */
                                 let make_frame = |target: &str, room: &Room| {
                                     serde_json::json!({
                                         "type": 1,
@@ -156,7 +155,14 @@ impl WsClient {
                                     }
                                 } else {
                                     /* 4 – everybody shuffled → broadcast shuffleComplete */
-                                    let frame = make_frame("shuffleComplete", &room);
+                                    let frame = serde_json::json!({
+                                        "type": 1,
+                                        "target": "shuffleComplete",
+                                        "arguments": [{
+                                            "deck": room.deck_state
+                                        }]
+                                    })
+                                    .to_string();
                                     println!("✓ shuffle phase complete");
                                     for addr in
                                         room.players.values().filter_map(|p| p.addr.as_ref())
