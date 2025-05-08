@@ -196,10 +196,10 @@ impl WsClient {
                     });
                 }
                 Ok(ClientEvent::PickCard { card }) => {
+                    println!("Player {} is attempting to pick card {}", self.id, card);
                     let mut room = self.room.lock().unwrap();
 
                     if room.taken_cards.values().any(|&c| c == card) {
-                        // already taken → deny
                         let deny = serde_json::json!({
                             "type":1,
                             "target":"cardTaken",
@@ -208,10 +208,8 @@ impl WsClient {
                         .to_string();
                         ctx.text(deny);
                     } else {
-                        // reserve it
                         room.taken_cards.insert(self.id.clone(), card);
 
-                        // acknowledge to requester
                         let ok = serde_json::json!({
                             "type":1,
                             "target":"cardTaken",
