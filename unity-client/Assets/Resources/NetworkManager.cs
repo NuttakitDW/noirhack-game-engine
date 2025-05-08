@@ -13,7 +13,6 @@ public class NetworkManager : MonoBehaviour
 {
     /*───────────────────────── Singleton ─────────────────────────*/
     public static NetworkManager Instance { get; private set; }
-    public static string LastWinner { get; private set; }
     public WebSocket ws;
 
     void Awake()
@@ -113,7 +112,28 @@ public class NetworkManager : MonoBehaviour
         await ws.SendText(json);
     }
 
+    void SendPickCard(int index)
+    {
+        var frame = new
+        {
+            type = 1,
+            target = "pickCard",
+            arguments = new[] { new { card = index } }
+        };
+        Instance.SendRaw(frame);
+    }
+
     /*───────────────────────── Incoming parsing ──────────────────*/
+
+    void HandleShuffleComplete(ShuffleCompletePayload p)
+    {
+        PlayerState.EncryptedDeck = p.deck;
+
+        // ----- auto-pick a random index 0–3 -----
+        int idx = UnityEngine.Random.Range(0, 4);
+        PlayerState.MyCardIndex = idx;
+        SendPickCard(idx);
+    }
     void HandleMessage(byte[] data)
     {
         string json = System.Text.Encoding.UTF8.GetString(data);
@@ -165,8 +185,10 @@ public class NetworkManager : MonoBehaviour
 
                     var payload = compEnv.arguments[0];
 
-                    Debug.Log($"[Network] shuffleComplete: deck rows = {payload.deck.Count}");
+                    PlayerState.EncryptedDeck = payload.deck;
+                    Debug.Log($"[Deck] stored {PlayerState.EncryptedDeck.Count} encrypted rows");
 
+                    Debug.Log($"[Network] shuffleComplete: deck rows = {payload.deck.Count}");
                     OnShuffleComplete?.Invoke(payload);
                     break;
                 }
@@ -283,7 +305,10 @@ public class NetworkManager : MonoBehaviour
     {
         public static string MyId;
         public static string Role;
+        public static List<string[]> EncryptedDeck = new();
+        public static int? MyCardIndex;
     }
+    public static string LastWinner { get; private set; }
 
     /*───────────────────────── Events ────────────────────────────*/
     public static Action OnRoomUpdate;
