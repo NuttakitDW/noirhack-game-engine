@@ -2,12 +2,14 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
+using System.Linq;
+using System.Collections.Generic;
 
 public class KeyPairStore : MonoBehaviour
 {
     public static KeyPairStore Instance { get; private set; }
     public string PublicKey { get; private set; }
-    private string _secretKey;  // stays in memory only
+    private string secretKey;
 
     void Awake()
     {
@@ -50,11 +52,9 @@ public class KeyPairStore : MonoBehaviour
 
         var resp = JsonUtility.FromJson<KeyPairResponse>(www.downloadHandler.text);
         PublicKey = resp.data.outputs.pk;
-        _secretKey = resp.data.outputs.sk;
-        Debug.Log($"[KeyPairStore] pk={PublicKey} sk={_secretKey}");
+        secretKey = resp.data.outputs.sk;
+        Debug.Log($"[KeyPairStore] pk={PublicKey} sk={secretKey}");
     }
-    /// <summary>Retrieve the secret for proofs.</summary>
-    public string GetSecretKey() => _secretKey;
 
     [Serializable]
     private class KeyPairResponse
