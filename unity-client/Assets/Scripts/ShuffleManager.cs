@@ -94,6 +94,34 @@ public class ShuffleManager : MonoBehaviour
                    : resp.data.proof;
         Debug.Log($"[Shuffle] ✔ proof generated (public_inputs={resp.data.public_inputs.Count}, " +
           $"proof={proofHead})");
+        var done = new ShuffleDoneFrame
+        {
+            type = 1,
+            target = "shuffleDone",
+            arguments = new[] {
+        new ShuffleDoneArg {
+            encrypted_deck = resp.data.outputs.shuffledDeck,
+            public_inputs  = resp.data.public_inputs,
+            proof          = resp.data.proof
+        }
+    }
+        };
+        string doneJson = JsonConvert.SerializeObject(done);
+        StartCoroutine(SendWs(doneJson));
+        Debug.Log("[Shuffle] ► shuffleDone sent");
+    }
+
+    IEnumerator SendWs(string json)
+    {
+        var ws = NetworkManager.Instance.ws;
+        if (ws == null || ws.State != NativeWebSocket.WebSocketState.Open)
+        {
+            Debug.LogError("WebSocket not open – shuffleDone not sent");
+            yield break;
+        }
+        var task = ws.SendText(json);
+        while (!task.IsCompleted) yield return null;
+        if (task.Exception != null) Debug.LogError(task.Exception);
     }
 
     /* ───────── DTOs for JsonUtility ───────── */
@@ -135,5 +163,19 @@ public class ShuffleManager : MonoBehaviour
         {
             public List<string[]> shuffledDeck;
         }
+    }
+    [Serializable]
+    class ShuffleDoneFrame
+    {
+        public int type;
+        public string target;
+        public ShuffleDoneArg[] arguments;
+    }
+    [Serializable]
+    class ShuffleDoneArg
+    {
+        public List<string[]> encrypted_deck;
+        public List<string> public_inputs;
+        public string proof;
     }
 }
