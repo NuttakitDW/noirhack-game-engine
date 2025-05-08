@@ -2,8 +2,6 @@ using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
-using System.Linq;
-using System.Collections.Generic;
 
 public class KeyPairStore : MonoBehaviour
 {
