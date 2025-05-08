@@ -38,11 +38,12 @@ public class NetworkManager : MonoBehaviour
             data = new
             {
                 g = "3",
-                card = new[] { p.cipher[0] },   // send only x-coordinate
+                card = p.cipher,
                 sk = mySk
             }
         };
         string bodyJson = JsonConvert.SerializeObject(bodyObj);
+        Debug.Log("[Decrypt] /prove body: " + bodyJson);
 
         // 2) POST to prover
         using var www = new UnityEngine.Networking.UnityWebRequest("http://localhost:3000/prove", UnityEngine.Networking.UnityWebRequest.kHttpVerbPOST)
@@ -72,16 +73,14 @@ public class NetworkManager : MonoBehaviour
         string comp = resp.data.outputs.decryptComponent;
 
         // 4) send decryptCard to server
-        var frame = new
+        var frame = new DecryptCardFrame
         {
-            type = 1,
-            target = "decryptCard",
-            arguments = new[] { new {
-            @for      = p.@for,
-            card      = p.card,
-            partial   = partial,
-            component = comp
-        }}
+            arguments = new[] { new DecryptCardArg {
+        @for      = p.@for,
+        card      = p.card,
+        partial   = partial,
+        component = comp
+    }}
         };
         Instance.SendRaw(frame);
         Debug.Log($"[Decrypt] sent decryptCard for {p.@for} (card {p.card})");
@@ -574,5 +573,21 @@ public class NetworkManager : MonoBehaviour
                 public string decryptComponent;   // cᵢ
             }
         }
+    }
+    [Serializable]
+    class DecryptCardArg
+    {
+        public string @for;
+        public int card;
+        public string[] partial;
+        public string component;
+    }
+
+    [Serializable]
+    class DecryptCardFrame
+    {
+        public int type = 1;
+        public string target = "decryptCard";
+        public DecryptCardArg[] arguments;
     }
 }
