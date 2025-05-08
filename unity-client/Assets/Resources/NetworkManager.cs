@@ -152,6 +152,24 @@ public class NetworkManager : MonoBehaviour
                     OnStartShuffle?.Invoke(payload);
                     break;
                 }
+            case "shuffleComplete":
+                {
+                    var compEnv = JsonConvert.DeserializeObject<
+                                      IncomingFrame<ShuffleCompletePayload>>(json);
+
+                    if (compEnv?.arguments == null || compEnv.arguments.Length == 0)
+                    {
+                        Debug.LogWarning("shuffleComplete frame missing arguments");
+                        break;
+                    }
+
+                    var payload = compEnv.arguments[0];
+
+                    Debug.Log($"[Network] shuffleComplete: deck rows = {payload.deck.Count}");
+
+                    OnShuffleComplete?.Invoke(payload);
+                    break;
+                }
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
@@ -277,6 +295,7 @@ public class NetworkManager : MonoBehaviour
     public static Action<string, Dictionary<string, string>> OnGameOver;
     public static Action<string> OnNightEnd;
     public static event Action<StartShufflePayload> OnStartShuffle;
+    public static event Action<ShuffleCompletePayload> OnShuffleComplete;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -388,5 +407,11 @@ public class NetworkManager : MonoBehaviour
         public List<string[]> deck;
         public List<string> rand;
         public List<List<string>> perm;
+    }
+
+    [Serializable]
+    public class ShuffleCompletePayload
+    {
+        public List<string[]> deck;
     }
 }
