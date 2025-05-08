@@ -95,13 +95,12 @@ impl Room {
         if let Some(player) = self.players.get_mut(&id) {
             player.is_ready = ready;
             self.broadcast_lobby();
-            self.try_start();
         } else {
             println!("Room::set_ready unknown id={}", id);
         }
     }
 
-    fn try_start(&mut self) {
+    pub fn try_start(&mut self) {
         let ready_count = self.players.values().filter(|p| p.is_ready).count();
         let key_count = self.public_keys.len();
         let expected = 4;
