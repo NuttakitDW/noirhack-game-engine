@@ -187,26 +187,34 @@ public class NetworkManager : MonoBehaviour
                     Debug.Log($"[Deck] stored {PlayerState.EncryptedDeck.Count} encrypted rows");
 
                     Debug.Log($"[Network] shuffleComplete: deck rows = {payload.deck.Count}");
-                    OnShuffleComplete?.Invoke(payload);
+                    HandleShuffleComplete(payload);
                     break;
                 }
             case "cardTaken":
                 {
                     var cardEnv = JsonConvert.DeserializeObject<
-                                 IncomingFrame<CardTakenPayload>>(json);
-
+                                      IncomingFrame<CardTakenPayload>>(json);
                     var pay = cardEnv?.arguments?[0];
                     if (pay == null) break;
 
                     Debug.Log($"[Pick] server replied {pay.status} for card {pay.card}");
 
-                    // keep a local set so we don’t retry a taken index
                     if (pay.status == "ok")
-                        PlayerState.MyCardIndex = pay.card;
-                    else                          // denied
+                    {
+                        PlayerState.MyCardIndex = pay.card;   // success – nothing more to do
+                    }
+                    else            // "denied"  → pick another free index
+                    {
                         PlayerState.TakenIndices.Add(pay.card);
 
-                    OnCardTaken?.Invoke(pay);
+                        // choose first free index 0-3 not yet denied
+                        int idx = Enumerable.Range(0, 4)
+                                  .First(i => !PlayerState.TakenIndices.Contains(i));
+
+                        Debug.Log($"[Pick] retrying with card {idx}");
+                        SendPickCard(idx);
+                    }
+
                     break;
                 }
             case "phase":
