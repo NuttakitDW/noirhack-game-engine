@@ -1,11 +1,13 @@
-use actix::AsyncContext;
-use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
-use actix_web_actors::ws;
-use serde_json::json;
-
 use crate::utils::aggregate_public_keys;
 use crate::utils::verify_shuffle;
-use crate::{room::room::SharedRoom, types::PlayerId};
+use crate::{
+    room::room::{Room, SharedRoom},
+    types::PlayerId,
+};
+use actix::AsyncContext;
+use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
+use actix_web::rt::task;
+use actix_web_actors::ws;
 
 pub struct WsClient {
     pub id: PlayerId,
@@ -95,75 +97,100 @@ impl WsClient {
                     public_inputs,
                     proof,
                 }) => {
-                    // 1) Lock the room
-                    print!("Client::ShuffleDone: Locking room...");
-                    let mut room = self.room.lock().unwrap();
+                    println!(
+                        "shuffleDone from {} → deck rows {}, inputs {}, proof head {}…",
+                        self.id,
+                        encrypted_deck.len(),
+                        public_inputs.len(),
+                        &proof[..10.min(proof.len())],
+                    );
 
-                    // 2) Validate it’s this client’s turn
-                    if room.shuffle_index >= room.shuffle_order.len()
-                        || room.shuffle_order[room.shuffle_index] != self.id
-                    {
-                        return;
-                    }
+                    // clone data captured by closure
+                    let room = self.room.clone();
+                    let my_id = self.id.clone();
+                    let inputs = public_inputs.clone();
+                    let prf = proof.clone();
+                    let deck = encrypted_deck.clone();
 
-                    // 3) Verify the proof
-                    print!("Client::ShuffleDone: Verifying proof...");
-                    match verify_shuffle(&public_inputs, &proof) {
-                        Ok(true) => {
-                            print!("Client::ShuffleDone: Proof valid. Updating deck...");
-                            room.deck_state = encrypted_deck.clone();
-                            room.shuffle_index += 1;
+                    task::spawn_blocking(move || {
+                        /* 1 – verify */
+                        match verify_shuffle(&inputs, &prf) {
+                            Ok(true) => {
+                                println!("✔ proof valid for player {my_id}");
 
-                            if room.shuffle_index < room.shuffle_order.len() {
-                                let next_id = &room.shuffle_order[room.shuffle_index];
-                                if let Some(next_player) = room.players.get(next_id) {
-                                    if let Some(addr) = &next_player.addr {
-                                        let frame = json!({
-                                            "type": 1,
-                                            "target": "startShuffle",
-                                            "arguments": [{
-                                                "agg_pk": room.agg_pk,
-                                                "deck": room.deck_state
-                                            }]
-                                        })
-                                        .to_string();
-                                        print!("Client::ShuffleDone: Sending startShuffle to player {}...", next_player.id);
-                                        addr.do_send(ServerText(frame));
-                                    }
+                                /* 2 – mutate room & choose next turn */
+                                let mut room = room.lock().unwrap();
+
+                                if room.shuffle_order.get(room.shuffle_index) != Some(&my_id) {
+                                    eprintln!("shuffleDone from out-of-turn player {my_id}");
+                                    return;
                                 }
-                            } else {
-                                let frame = json!({
-                                    "type": 1,
-                                    "target": "shuffleComplete",
-                                    "arguments": [{
-                                        "agg_pk": room.agg_pk,
-                                        "deck": room.deck_state
-                                    }]
-                                })
-                                .to_string();
-                                for player in room.players.values() {
-                                    if let Some(addr) = &player.addr {
-                                        print!("Client::ShuffleDone: Sending shuffleComplete to player {}...", player.id);
-                                        addr.do_send(ServerText(frame.clone()));
+
+                                room.deck_state = deck;
+                                room.shuffle_index += 1;
+
+                                /* helper for frames */
+                                let make_frame = |target: &str, room: &Room| {
+                                    serde_json::json!({
+                                        "type": 1,
+                                        "target": target,
+                                        "arguments": [{
+                                            "agg_pk": room.agg_pk,
+                                            "deck":   room.deck_state
+                                        }]
+                                    })
+                                    .to_string()
+                                };
+
+                                if room.shuffle_index < room.shuffle_order.len() {
+                                    /* 3 – send startShuffle to next player only */
+                                    let next_id = &room.shuffle_order[room.shuffle_index];
+                                    if let Some(addr) =
+                                        room.players.get(next_id).and_then(|p| p.addr.as_ref())
+                                    {
+                                        println!("→ startShuffle to {next_id}");
+                                        addr.do_send(crate::ws::client::ServerText(make_frame(
+                                            "startShuffle",
+                                            &room,
+                                        )));
                                     }
+                                } else {
+                                    /* 4 – everybody shuffled → broadcast shuffleComplete */
+                                    let frame = make_frame("shuffleComplete", &room);
+                                    println!("✓ shuffle phase complete");
+                                    for addr in
+                                        room.players.values().filter_map(|p| p.addr.as_ref())
+                                    {
+                                        addr.do_send(crate::ws::client::ServerText(frame.clone()));
+                                    }
+                                    room.try_start();
                                 }
                             }
+
+                            Ok(false) => {
+                                eprintln!("✘ proof INVALID from player {my_id}");
+                                if let Some(addr) = room
+                                    .lock()
+                                    .unwrap()
+                                    .players
+                                    .get(&my_id)
+                                    .and_then(|p| p.addr.as_ref())
+                                {
+                                    let rej = serde_json::json!({
+                                        "type":1,
+                                        "target":"shuffleRejected",
+                                        "arguments":[{ "reason":"invalid proof" }]
+                                    })
+                                    .to_string();
+                                    addr.do_send(crate::ws::client::ServerText(rej));
+                                }
+                            }
+
+                            Err(e) => eprintln!("verify call failed for {my_id}: {e:#}"),
                         }
-                        Ok(false) | Err(_) => {
-                            // 6) Proof invalid: reject
-                            let rej = ServerText(
-                                json!({
-                                    "type": 1,
-                                    "target": "shuffleRejected",
-                                    "arguments": [{ "reason": "invalid proof" }]
-                                })
-                                .to_string(),
-                            );
-                            ctx.text(rej.0);
-                            // do not advance shuffle_index or change deck_state
-                        }
-                    }
+                    });
                 }
+
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }
