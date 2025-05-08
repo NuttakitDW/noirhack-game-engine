@@ -33,6 +33,9 @@ pub enum ClientEvent {
         public_inputs: Vec<String>,
         proof: String,
     },
+    PickCard {
+        card: usize,
+    },
     RawUnknown,
 }
 
@@ -66,6 +69,15 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             let ChatPayload { text } = serde_json::from_value(payload.clone())
                 .map_err(|e| format!("bad chat payload: {e}"))?;
             Ok(ClientEvent::Chat { text })
+        }
+        "pickCard" => {
+            let idx = msg
+                .arguments
+                .get(0)
+                .and_then(|v| v.get("card"))
+                .and_then(|v| v.as_u64())
+                .ok_or("pickCard expects {card:uint}")? as usize;
+            Ok(ClientEvent::PickCard { card: idx })
         }
         "nightAction" => {
             let payload = msg
