@@ -24,7 +24,7 @@ git clone https://github.com/NuttakitDW/noirhack-game-engine.git
 ```
 
 #### 2. Install rust
-If you don't have Bun installed on your machine, you can install it by running the following command:
+If you don't have Rust installed on your machine, you can install it by running the following command:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
