@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use actix::Addr;
@@ -24,6 +24,14 @@ pub struct Room {
     pub agg_pk: String,
     pub deck_state: Vec<[String; 2]>,
     pub taken_cards: HashMap<PlayerId, usize>,
+    pub decrypt_ctx: HashMap<PlayerId, DecryptCtx>,
+}
+
+pub struct DecryptCtx {
+    pub helpers: VecDeque<PlayerId>, // queue B → C → D
+    pub current_cipher: [String; 2], // starts with chosen card
+    pub components: Vec<String>,     // c¹, c², c³ accumulate
+    pub card_index: usize,           // 0–3 (for bookkeeping)
 }
 
 impl Room {
@@ -47,6 +55,7 @@ impl Room {
                 ["1".into(), "2".into()], // Villager
             ],
             taken_cards: HashMap::new(),
+            decrypt_ctx: HashMap::new(),
         }
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
