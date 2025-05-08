@@ -23,6 +23,7 @@ pub struct Room {
     pub shuffle_index: usize,
     pub agg_pk: String,
     pub deck_state: Vec<[String; 2]>,
+    pub taken_cards: HashMap<PlayerId, usize>,
 }
 
 impl Room {
@@ -45,6 +46,7 @@ impl Room {
                 ["1".into(), "2".into()], // Villager
                 ["1".into(), "2".into()], // Villager
             ],
+            taken_cards: HashMap::new(),
         }
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
