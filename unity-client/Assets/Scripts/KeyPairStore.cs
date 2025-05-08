@@ -7,7 +7,7 @@ public class KeyPairStore : MonoBehaviour
 {
     public static KeyPairStore Instance { get; private set; }
     public string PublicKey { get; private set; }
-    private string secretKey;
+    private string _secretKey;
 
     void Awake()
     {
@@ -18,6 +18,8 @@ public class KeyPairStore : MonoBehaviour
         }
         else Destroy(gameObject);
     }
+
+    public string GetSecretKey() => _secretKey;
 
     /// <summary>
     /// Fetches sk/pk from the HTTP API and stores them in memory.
@@ -50,8 +52,8 @@ public class KeyPairStore : MonoBehaviour
 
         var resp = JsonUtility.FromJson<KeyPairResponse>(www.downloadHandler.text);
         PublicKey = resp.data.outputs.pk;
-        secretKey = resp.data.outputs.sk;
-        Debug.Log($"[KeyPairStore] pk={PublicKey} sk={secretKey}");
+        _secretKey = resp.data.outputs.sk;
+        Debug.Log($"[KeyPairStore] pk={PublicKey} sk={_secretKey}");
     }
 
     [Serializable]
