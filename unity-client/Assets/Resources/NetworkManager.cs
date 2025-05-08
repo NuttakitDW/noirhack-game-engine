@@ -7,6 +7,7 @@ using NativeWebSocket;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Newtonsoft.Json;
+using System.Text;
 
 
 public class NetworkManager : MonoBehaviour
@@ -26,6 +27,65 @@ public class NetworkManager : MonoBehaviour
 
     /*───────────────────────── Connect / join ────────────────────*/
     string myName;
+    IEnumerator DoPartialDecrypt(NeedDecryptPayload p)
+    {
+        string mySk = KeyPairStore.Instance.GetSecretKey();
+
+        // 1) build JSON body for decryptOneLayer
+        var bodyObj = new
+        {
+            circuit_name = "decryptOneLayer",
+            data = new
+            {
+                g = "3",
+                card = new[] { p.cipher[0] },   // send only x-coordinate
+                sk = mySk
+            }
+        };
+        string bodyJson = JsonConvert.SerializeObject(bodyObj);
+
+        // 2) POST to prover
+        using var www = new UnityEngine.Networking.UnityWebRequest("http://localhost:3000/prove", UnityEngine.Networking.UnityWebRequest.kHttpVerbPOST)
+        {
+            uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(Encoding.UTF8.GetBytes(bodyJson)),
+            downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer()
+        };
+        www.SetRequestHeader("Content-Type", "application/json");
+        yield return www.SendWebRequest();
+
+        if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+        {
+            Debug.LogError($"/prove decrypt failed: {www.error}");
+            yield break;
+        }
+
+        // 3) parse response
+        var resp = JsonConvert.DeserializeObject<DecryptOneLayerResp>(
+                       www.downloadHandler.text);
+        if (resp == null || !resp.ok)
+        {
+            Debug.LogError("/prove decrypt responded ok=false");
+            yield break;
+        }
+
+        string[] partial = resp.data.outputs.decryptedCard;
+        string comp = resp.data.outputs.decryptComponent;
+
+        // 4) send decryptCard to server
+        var frame = new
+        {
+            type = 1,
+            target = "decryptCard",
+            arguments = new[] { new {
+            @for      = p.@for,
+            card      = p.card,
+            partial   = partial,
+            component = comp
+        }}
+        };
+        Instance.SendRaw(frame);
+        Debug.Log($"[Decrypt] sent decryptCard for {p.@for} (card {p.card})");
+    }
 
     private IEnumerator FetchKeysThenEnterGame()
     {
@@ -215,6 +275,18 @@ public class NetworkManager : MonoBehaviour
 
                     break;
                 }
+            case "needDecrypt":
+                {
+                    var needDeEnv = JsonConvert.DeserializeObject<
+                                 IncomingFrame<NeedDecryptPayload>>(json);
+                    var p = needDeEnv?.arguments?[0];
+                    if (p == null) break;
+
+                    Debug.Log($"[Decrypt] needDecrypt → helper for {p.@for} card {p.card}");
+                    StartCoroutine(DoPartialDecrypt(p));
+                    break;
+                }
+
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
@@ -476,5 +548,31 @@ public class NetworkManager : MonoBehaviour
         public string target = "pickCard";
         public PickCardArg[] arguments;
     }
+    [Serializable]
+    public class NeedDecryptPayload
+    {
+        public string @for;      // requester’s player-id
+        public int card;      // index 0-3
+        public string[] cipher;  // ["x","y"] at this stage
+    }
 
+    [Serializable]
+    public class DecryptOneLayerResp   // shape of /prove response (partial)
+    {
+        public bool ok;
+        public int code;
+        public RespData data;
+
+        [Serializable]
+        public class RespData
+        {
+            public Outputs outputs;
+            [Serializable]
+            public class Outputs
+            {
+                public string[] decryptedCard;      // two-element array
+                public string decryptComponent;   // cᵢ
+            }
+        }
+    }
 }
