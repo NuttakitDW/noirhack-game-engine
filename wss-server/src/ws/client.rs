@@ -1,13 +1,14 @@
 use crate::utils::aggregate_public_keys;
 use crate::utils::verify_shuffle;
 use crate::{
-    room::room::{Room, SharedRoom},
+    room::room::{DecryptCtx, Room, SharedRoom},
     types::PlayerId,
 };
 use actix::AsyncContext;
 use actix::{Actor, ActorContext, Handler, Message, StreamHandler};
 use actix_web::rt::task;
 use actix_web_actors::ws;
+use std::collections::VecDeque;
 
 pub struct WsClient {
     pub id: PlayerId,
@@ -33,6 +34,26 @@ impl Handler<ServerText> for WsClient {
 
 impl Actor for WsClient {
     type Context = ws::WebsocketContext<Self>;
+}
+
+fn send_need_decrypt(room: &Room, requester: &PlayerId, helper: &PlayerId) {
+    if let Some(addr) = room.players.get(helper).and_then(|p| p.addr.as_ref()) {
+        if let Some(ctx) = room.decrypt_ctx.get(requester) {
+            let frame = serde_json::json!({
+            "type": 1,
+            "target": "needDecrypt",
+            "arguments": [{
+               "for":   requester,
+               "card":  ctx.card_index,
+               "cipher": ctx.current_cipher
+            }]
+            })
+            .to_string();
+
+            addr.do_send(crate::ws::client::ServerText(frame));
+            println!("→ needDecrypt to {} for {}", helper, requester);
+        }
+    }
 }
 
 impl WsClient {
@@ -221,9 +242,46 @@ impl WsClient {
                         for p in room.players.values().filter_map(|pl| pl.addr.as_ref()) {
                             p.do_send(crate::ws::client::ServerText(ok.clone()));
                         }
+                        if room.taken_cards.len() == 4 {
+                            println!("All cards claimed – setting up decrypt queues");
+
+                            let taken_cards: Vec<(PlayerId, usize)> = room
+                                .taken_cards
+                                .iter()
+                                .map(|(player_id, &idx)| (player_id.clone(), idx))
+                                .collect();
+
+                            for (player_id, idx) in taken_cards {
+                                // queue of the *other* three players, using shuffle_order
+                                let helpers: VecDeque<PlayerId> = room
+                                    .shuffle_order
+                                    .iter()
+                                    .filter(|pid| *pid != &player_id) // compare &String to &String
+                                    .cloned()
+                                    .collect();
+
+                                let cipher = room.deck_state[idx].clone(); // ["x","y"]
+
+                                room.decrypt_ctx.insert(
+                                    player_id.clone(),
+                                    DecryptCtx {
+                                        helpers,
+                                        current_cipher: cipher,
+                                        components: Vec::new(),
+                                        card_index: idx,
+                                    },
+                                );
+                            }
+
+                            // fire the first needDecrypt to each requester’s first helper
+                            for (player_id, ctx) in &room.decrypt_ctx {
+                                if let Some(first_helper) = ctx.helpers.front() {
+                                    send_need_decrypt(&room, player_id, first_helper);
+                                }
+                            }
+                        }
                     }
                 }
-
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
                 }
