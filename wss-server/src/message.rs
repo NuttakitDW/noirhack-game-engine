@@ -1,3 +1,4 @@
+use crate::types::PlayerId;
 use serde::Deserialize;
 use serde_json;
 
@@ -35,6 +36,12 @@ pub enum ClientEvent {
     },
     PickCard {
         card: usize,
+    },
+    DecryptCard {
+        for_player: PlayerId,
+        card: usize,
+        partial: [String; 2],
+        component: String,
     },
     RawUnknown,
 }
@@ -78,6 +85,46 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
                 .and_then(|v| v.as_u64())
                 .ok_or("pickCard expects {card:uint}")? as usize;
             Ok(ClientEvent::PickCard { card: idx })
+        }
+        "decryptCard" => {
+            let obj = msg
+                .arguments
+                .get(0)
+                .and_then(|v| v.as_object())
+                .ok_or("decryptCard expects an object")?;
+
+            let for_player = obj
+                .get("for")
+                .and_then(|v| v.as_str())
+                .ok_or("decryptCard.for missing")?
+                .to_owned();
+
+            let card = obj
+                .get("card")
+                .and_then(|v| v.as_u64())
+                .ok_or("decryptCard.card")? as usize;
+
+            let partial_arr = obj
+                .get("partial")
+                .and_then(|v| v.as_array())
+                .ok_or("decryptCard.partial")?;
+            let partial = [
+                partial_arr[0].as_str().unwrap().to_owned(),
+                partial_arr[1].as_str().unwrap().to_owned(),
+            ];
+
+            let component = obj
+                .get("component")
+                .and_then(|v| v.as_str())
+                .ok_or("decryptCard.component")?
+                .to_owned();
+
+            Ok(ClientEvent::DecryptCard {
+                for_player,
+                card,
+                partial,
+                component,
+            })
         }
         "nightAction" => {
             let payload = msg
