@@ -6,6 +6,7 @@ using System.Linq;
 using NativeWebSocket;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Newtonsoft.Json;
 
 
 public class NetworkManager : MonoBehaviour
@@ -137,62 +138,20 @@ public class NetworkManager : MonoBehaviour
         {
             case "startShuffle":
                 {
-                    // 1) parse the envelope
-                    var shufEnv = JsonUtility.FromJson<
-                                      IncomingFrame<StartShufflePayload>>(json);
+                    var shufEnv = JsonConvert.DeserializeObject<
+                                     IncomingFrame<StartShufflePayload>>(json);
 
-                    if (shufEnv.arguments == null || shufEnv.arguments.Length == 0)
+                    var payload = shufEnv?.arguments?[0];
+                    if (payload == null || payload.deck == null)
                     {
-                        Debug.LogWarning("startShuffle frame missing arguments");
+                        Debug.LogError("startShuffle deck is null after JSON parse");
                         break;
                     }
 
-                    var payload = shufEnv.arguments[0];
-
-                    Debug.Log($"[Network] startShuffle: agg_pk={payload.agg_pk}  deck len={payload.deck.Count}");
-
-                    /* ───── 2) build the request body for /prove ───── */
-
-                    int n = payload.deck.Count;
-
-                    // a. rand  ─ one six-digit string per card
-                    var rand = Enumerable.Range(0, n)
-                        .Select(_ => UnityEngine.Random.Range(0, 1_000_000).ToString("D6"))
-                        .ToList();
-
-                    // b. perm  ─ identity n×n (you can randomise later)
-                    var perm = new List<List<string>>();
-                    for (int r = 0; r < n; r++)
-                    {
-                        var row = new List<string>(Enumerable.Repeat("0", n));
-                        row[r] = "1";
-                        perm.Add(row);
-                    }
-
-                    // c. unwrap the deck rows (StringRow → string[])
-                    var deckRows = payload.deck.Select(r => r.row).ToList();
-
-                    // d. pack into a strongly-typed object so JsonUtility can serialise it
-                    var proveReq = new ProveRequest
-                    {
-                        circuit_name = "shuffle4",
-                        data = new ProveData
-                        {
-                            g = "3",
-                            agg_pk = payload.agg_pk,
-                            deck = deckRows,
-                            rand = rand,
-                            perm = perm
-                        }
-                    };
-
-                    string bodyJson = JsonUtility.ToJson(proveReq);
-                    Debug.Log("[Prove] JSON that will be POSTed:\n" + bodyJson);
-
+                    Debug.Log($"[Network] startShuffle: deck rows={payload.deck.Count}");
                     OnStartShuffle?.Invoke(payload);
                     break;
                 }
-
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
@@ -412,7 +371,7 @@ public class NetworkManager : MonoBehaviour
     public class StartShufflePayload
     {
         public string agg_pk;
-        public List<StringRow> deck;        // was List<List<string>>
+        public List<string[]> deck;
     }
     [Serializable]
     class ProveRequest

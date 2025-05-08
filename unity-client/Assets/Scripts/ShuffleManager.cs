@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using Newtonsoft.Json;
 
 public class ShuffleManager : MonoBehaviour
 {
@@ -38,16 +39,15 @@ public class ShuffleManager : MonoBehaviour
             .Select(_ => UnityEngine.Random.Range(0, 1_000_000).ToString("D6"))
             .ToList();
 
-        var perm = new List<List<string>>();
+        var perm = new List<string[]>();
         for (int r = 0; r < n; r++)
         {
-            var row = new List<string>(Enumerable.Repeat("0", n));
-            row[r] = "1";                 // identity – change later if you need shuffle
+            var row = new string[n];
+            for (int c = 0; c < n; c++) row[c] = (c == r ? "1" : "0");
             perm.Add(row);
         }
 
-        /* 2. Unwrap StringRow -> string[] */
-        var deckRows = p.deck.Select(r => r.row).ToList();
+        var deck = p.deck;
 
         /* 3. Pack request object */
         var req = new ShuffleRequest
@@ -57,13 +57,15 @@ public class ShuffleManager : MonoBehaviour
             {
                 g = "3",
                 agg_pk = p.agg_pk,
-                deck = deckRows,
+                deck = deck,
                 rand = rand,
                 perm = perm
             }
         };
-        string bodyJson = JsonUtility.ToJson(req);
+        string bodyJson = JsonConvert.SerializeObject(req, Formatting.Indented);
         Debug.Log("[Shuffle] ► /prove\n" + bodyJson);
+        string pretty = JsonUtility.ToJson(req, /*prettyPrint*/ true);
+        Debug.Log("[DEBUG] Pretty JSON:\n" + pretty);
 
         /* 4. POST */
         using var www = new UnityWebRequest("http://localhost:3000/prove", "POST")
@@ -80,7 +82,18 @@ public class ShuffleManager : MonoBehaviour
             Debug.LogError("[Shuffle] ◄ /prove HTTP-error: " + www.error);
             yield break;
         }
-        Debug.Log("[Shuffle] ◄ /prove response:\n" + www.downloadHandler.text);
+        string respText = www.downloadHandler.text;
+        var resp = JsonConvert.DeserializeObject<ProverResp>(respText);
+        if (!resp.ok)
+        {
+            Debug.LogError($"[Shuffle] prover returned ok=false  code={resp.code}");
+            yield break;
+        }
+        string proofHead = resp.data.proof.Length >= 10
+                   ? resp.data.proof.Substring(0, 10) + "..."
+                   : resp.data.proof;
+        Debug.Log($"[Shuffle] ✔ proof generated (public_inputs={resp.data.public_inputs.Count}, " +
+          $"proof={proofHead})");
     }
 
     /* ───────── DTOs for JsonUtility ───────── */
@@ -90,6 +103,7 @@ public class ShuffleManager : MonoBehaviour
         public string circuit_name;
         public ShuffleData data;
     }
+
     [Serializable]
     class ShuffleData
     {
@@ -97,6 +111,29 @@ public class ShuffleManager : MonoBehaviour
         public string agg_pk;
         public List<string[]> deck;
         public List<string> rand;
-        public List<List<string>> perm;
+        public List<string[]> perm;
+    }
+    [Serializable] public class DeckRow { public string[] row; }
+    [Serializable] public class PermRow { public string[] row; }
+
+    [Serializable]
+    class ProverResp
+    {
+        public bool ok;
+        public int code;
+        public RespData data;
+
+        [Serializable]
+        public class RespData
+        {
+            public string proof;
+            public List<string> public_inputs;
+            public Outputs outputs;
+        }
+        [Serializable]
+        public class Outputs
+        {
+            public List<string[]> shuffledDeck;
+        }
     }
 }
