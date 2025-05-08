@@ -114,13 +114,11 @@ public class NetworkManager : MonoBehaviour
 
     void SendPickCard(int index)
     {
-        var frame = new
+        var frame = new PickCardFrame
         {
-            type = 1,
-            target = "pickCard",
-            arguments = new[] { new { card = index } }
+            arguments = new[] { new PickCardArg { card = index } }
         };
-        Instance.SendRaw(frame);
+        SendRaw(frame);   // now JsonUtility can handle it
     }
 
     /*───────────────────────── Incoming parsing ──────────────────*/
@@ -346,8 +344,6 @@ public class NetworkManager : MonoBehaviour
     public static Action<string, Dictionary<string, string>> OnGameOver;
     public static Action<string> OnNightEnd;
     public static event Action<StartShufflePayload> OnStartShuffle;
-    public static event Action<ShuffleCompletePayload> OnShuffleComplete;
-    public static event Action<CardTakenPayload> OnCardTaken;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -472,4 +468,13 @@ public class NetworkManager : MonoBehaviour
         public string status;   // "ok" or "denied"
         public int card;     // index 0-3
     }
+    [Serializable] class PickCardArg { public int card; }
+    [Serializable]
+    class PickCardFrame
+    {
+        public int type = 1;
+        public string target = "pickCard";
+        public PickCardArg[] arguments;
+    }
+
 }
