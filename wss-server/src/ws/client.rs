@@ -195,6 +195,36 @@ impl WsClient {
                         }
                     });
                 }
+                Ok(ClientEvent::PickCard { card }) => {
+                    let mut room = self.room.lock().unwrap();
+
+                    if room.taken_cards.values().any(|&c| c == card) {
+                        // already taken → deny
+                        let deny = serde_json::json!({
+                            "type":1,
+                            "target":"cardTaken",
+                            "arguments":[{ "status":"denied", "card": card }]
+                        })
+                        .to_string();
+                        ctx.text(deny);
+                    } else {
+                        // reserve it
+                        room.taken_cards.insert(self.id.clone(), card);
+
+                        // acknowledge to requester
+                        let ok = serde_json::json!({
+                            "type":1,
+                            "target":"cardTaken",
+                            "arguments":[{ "status":"ok", "card": card }]
+                        })
+                        .to_string();
+
+                        ctx.text(ok.clone());
+                        for p in room.players.values().filter_map(|pl| pl.addr.as_ref()) {
+                            p.do_send(crate::ws::client::ServerText(ok.clone()));
+                        }
+                    }
+                }
 
                 Ok(evt) => {
                     println!("Unhandled event: {:?}", evt);
