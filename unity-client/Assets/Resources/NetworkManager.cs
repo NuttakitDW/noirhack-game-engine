@@ -72,7 +72,8 @@ public class NetworkManager : MonoBehaviour
         string[] partial = resp.data.outputs.decryptedCard;
         string comp = resp.data.outputs.decryptComponent;
 
-        // 4) send decryptCard to server
+        PlayerState.DecryptComponents.Add(comp);
+
         var frame = new DecryptCardFrame
         {
             arguments = new[] { new DecryptCardArg {
@@ -402,6 +403,7 @@ public class NetworkManager : MonoBehaviour
         public static List<string[]> EncryptedDeck = new();
         public static int? MyCardIndex;
         public static readonly HashSet<int> TakenIndices = new();
+        public static readonly List<string> DecryptComponents = new();
     }
     public static string LastWinner { get; private set; }
 
