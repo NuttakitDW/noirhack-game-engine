@@ -130,27 +130,6 @@ impl Room {
 
     fn start_game(&mut self) {
         println!("Room::start_game");
-        use crate::game::role::assign_roles;
-        let ids: Vec<_> = self.players.keys().cloned().collect();
-        let role_map = assign_roles(&ids);
-        for (id, role) in &role_map {
-            if let Some(player) = self.players.get_mut(id) {
-                player.role = Some(*role);
-            }
-        }
-        for (id, role) in &role_map {
-            let frame = json!({
-                "type":1,
-                "target":"role",
-                "arguments":[{"role":format!("{:?}",role)}]
-            })
-            .to_string();
-            if let Some(player) = self.players.get(id) {
-                if let Some(addr) = &player.addr {
-                    addr.do_send(ServerText(frame.clone()));
-                }
-            }
-        }
         let players_info: Vec<_> = self
             .players
             .values()
