@@ -23,9 +23,9 @@ public class ActionManager : MonoBehaviour
 
     static byte RoleToMessageByte(string role) => role switch
     {
-        "WOLF" => 0x00,
+        "WOLF" => 0x0a,
         "SEER" => 0x01,
-        _ => 0x00
+        _ => 0x02
     };
 
     void OnEnable()

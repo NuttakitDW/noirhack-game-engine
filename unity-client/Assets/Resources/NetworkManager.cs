@@ -567,7 +567,7 @@ public class NetworkManager : MonoBehaviour
 
     static readonly Dictionary<byte, string> RoleLookup = new()
     {
-        { 0x00, "WOLF"      },
+        { 0x0a, "WOLF"      },
         { 0x01, "SEER"      },
         { 0x02, "VILLAGER"  },
     };

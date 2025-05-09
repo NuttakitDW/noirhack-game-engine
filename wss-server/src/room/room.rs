@@ -49,10 +49,10 @@ impl Room {
             shuffle_index: 0,
             agg_pk: String::new(),
             deck_state: vec![
-                ["1".into(), "0".into()], // Wolf
-                ["1".into(), "1".into()], // Seer
-                ["1".into(), "2".into()], // Villager
-                ["1".into(), "2".into()], // Villager
+                ["1".into(), "10".into()], // Wolf
+                ["1".into(), "1".into()],  // Seer
+                ["1".into(), "2".into()],  // Villager
+                ["1".into(), "2".into()],  // Villager
             ],
             taken_cards: HashMap::new(),
             decrypt_ctx: HashMap::new(),
