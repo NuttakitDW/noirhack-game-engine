@@ -3,6 +3,10 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using System.Collections.Generic;
+using System.Text;
+using Newtonsoft.Json;
+using UnityEngine.Networking;
 
 public class ActionManager : MonoBehaviour
 {
@@ -14,8 +18,15 @@ public class ActionManager : MonoBehaviour
     [SerializeField] TMP_Text toastLabel;
 
     PlayerCard currentCard;
-    string currentPhase = "lobby";      // tracks night vs day
+    string currentPhase = "lobby";
     string targetId;
+
+    static byte RoleToMessageByte(string role) => role switch
+    {
+        "WOLF" => 0x00,
+        "SEER" => 0x01,
+        _ => 0x00
+    };
 
     void OnEnable()
     {
@@ -115,25 +126,24 @@ public class ActionManager : MonoBehaviour
     {
         if (NetworkManager.PlayerState.Role != "SEER")
         {
-            StartCoroutine(ShowToast("You are not the Seer"));
-            return;
+            StartCoroutine(ShowToast("You are not the Seer")); return;
         }
-        hintLabel.text = "Peek sent…";
-        NetworkManager.Instance.SendNightAction("peek", targetId);
+        hintLabel.text = "Generating proof…";
         peekButton.interactable = killButton.interactable = false;
+        StartCoroutine(ProveAndSend("peek"));
     }
 
     void DoKill()
     {
-        if (NetworkManager.PlayerState.Role != "WEREWOLF")
+        if (NetworkManager.PlayerState.Role != "WOLF")
         {
-            StartCoroutine(ShowToast("You are not the Werewolf"));
-            return;
+            StartCoroutine(ShowToast("You are not the Werewolf")); return;
         }
-        hintLabel.text = "Kill sent…";
-        NetworkManager.Instance.SendNightAction("kill", targetId);
+        hintLabel.text = "Generating proof…";
         peekButton.interactable = killButton.interactable = false;
+        StartCoroutine(ProveAndSend("kill"));
     }
+
 
     void DoVote()
     {
@@ -149,5 +159,78 @@ public class ActionManager : MonoBehaviour
         toastLabel.alpha = 1f;
         yield return new WaitForSeconds(duration);
         toastLabel.alpha = 0f;
+    }
+    IEnumerator ProveAndSend(string action)
+    {
+        // ----- sanity ---------------------------------------------------
+        if (NetworkManager.PlayerState.MyCardIndex is not int idx)
+        {
+            Debug.LogError("Prove: MyCardIndex is null"); yield break;
+        }
+
+        // ----- expected_messages[0] = 0x00 or 0x01 ----------------------
+        var expected = new List<string>(new string[10]);
+        expected[0] = RoleToMessageByte(NetworkManager.PlayerState.Role).ToString();
+
+        // ----- build JSON body -----------------------------------------
+        var bodyObj = new
+        {
+            circuit_name = "verifyCardMessage",
+            data = new
+            {
+                deck = NetworkManager.PlayerState.EncryptedDeck,
+                deck_size = "4",
+                card = NetworkManager.PlayerState.EncryptedDeck[idx],
+                decrypt_components = NetworkManager.PlayerState.DecryptComponents,
+                num_decrypt_components = NetworkManager.PlayerState.DecryptComponents.Count.ToString(),
+                expected_messages = expected,
+                num_expected_messages = "1",
+                nullifier_secret = Random.Range(1, int.MaxValue).ToString()
+            }
+        };
+        string json = JsonConvert.SerializeObject(bodyObj);
+
+        // ----- POST /prove ---------------------------------------------
+        using var www = new UnityWebRequest("http://localhost:3000/prove", "POST")
+        {
+            uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json)),
+            downloadHandler = new DownloadHandlerBuffer()
+        };
+        www.SetRequestHeader("Content-Type", "application/json");
+        yield return www.SendWebRequest();
+
+        if (www.result != UnityWebRequest.Result.Success)
+        {
+            Debug.LogError($"Prove HTTP error: {www.error}"); yield break;
+        }
+
+        VerifyResp resp = JsonConvert.DeserializeObject<VerifyResp>(www.downloadHandler.text);
+        if (!resp.ok)
+        {
+            Debug.LogError($"Prover returned ok=false (code {resp.code})"); yield break;
+        }
+
+        // ----- proof OK → send nightAction with proof ------------------
+        NetworkManager.Instance.SendNightActionProof(
+            action, targetId, resp.data.proof, resp.data.public_inputs);
+
+        Debug.Log($"✓ Sent nightAction '{action}' with ZK proof");
+    }
+
+}
+
+[System.Serializable]
+class VerifyResp
+{
+    public bool ok;
+    public int code;
+    public RespData data;
+
+    [System.Serializable]
+    public class RespData
+    {
+        public string outputs;
+        public string[] public_inputs;
+        public string proof;
     }
 }
