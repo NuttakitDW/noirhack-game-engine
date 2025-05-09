@@ -10,7 +10,7 @@ pub struct Incoming {
     pub arguments: Vec<serde_json::Value>,
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub enum ClientEvent {
     Join {
         name: String,
@@ -22,6 +22,8 @@ pub enum ClientEvent {
     NightAction {
         action: String,
         target: String,
+        proof: String,
+        public_inputs: Vec<String>,
     },
     Vote {
         target: String,
@@ -138,7 +140,12 @@ pub fn to_client_event(msg: Incoming) -> Result<ClientEvent, String> {
             }
             let NightPayload { action, target } = serde_json::from_value(payload.clone())
                 .map_err(|e| format!("bad nightAction payload: {e}"))?;
-            Ok(ClientEvent::NightAction { action, target })
+            Ok(ClientEvent::NightAction {
+                action,
+                target,
+                proof: String::new(),
+                public_inputs: Vec::new(),
+            })
         }
         "vote" => {
             let tgt = msg
