@@ -370,8 +370,16 @@ public class NetworkManager : MonoBehaviour
                     // 1) Cache the cipher (["cx","cy"]) for the final decrypt
                     PlayerState.PendingCipher = p.partial;
 
-                    // 2) Stash the decrypt component for completeness / auditing
-                    PlayerState.DecryptComponents.Add(p.component);
+                    if (p.components != null && p.components.Length > 0)
+                    {
+                        PlayerState.DecryptComponents.Clear();
+                        PlayerState.DecryptComponents.AddRange(p.components);
+                    }
+                    else
+                    {
+                        // fallback for legacy server
+                        PlayerState.DecryptComponents.Add(p.component);
+                    }
 
                     // 3) Log so we can confirm in the Console
                     Debug.Log($"[Decrypt] partialReady – saved cipher (card {p.card})");
@@ -761,9 +769,10 @@ public class NetworkManager : MonoBehaviour
     [Serializable]
     class PartialReadyPayload
     {
-        public int card;            // index 0-3 (handy for logging)
-        public string[] partial;    // 2-element cipher after helpers finished
-        public string component;    // helper’s decrypt component cᵢ
+        public int card;
+        public string[] partial;
+        public string component;
+        public string[] components;
     }
 
     [Serializable]
