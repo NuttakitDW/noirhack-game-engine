@@ -7,7 +7,7 @@ This project includes a downloadable game client, a WebSocket server, and an API
 ## 📁 Part 1: Download and Run the Game
 
 #### 1. Download the Game ZIP  
-  [Download Game (.zip)](./Noir%20WereWolf.zip)
+  [Download Game (.zip)](./Noir%20Werewolf.zip)
 
 #### 2. Extract the ZIP  
   Extract the ZIP file to a folder of your choice.
