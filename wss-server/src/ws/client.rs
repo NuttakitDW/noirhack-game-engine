@@ -85,6 +85,28 @@ fn send_all_parts_ready(room: &Room, requester: &PlayerId) {
     }
 }
 
+fn send_night_ack(room: &SharedRoom, player: &PlayerId, ok: bool, reason: &str) {
+    if let Some(addr) = room
+        .lock()
+        .unwrap()
+        .players
+        .get(player)
+        .and_then(|p| p.addr.as_ref())
+    {
+        let frame = serde_json::json!({
+            "type": 1,
+            "target": "nightAck",
+            "arguments": [{
+                "status": if ok { "ok" } else { "rejected" },
+                "reason": reason
+            }]
+        })
+        .to_string();
+
+        addr.do_send(crate::ws::client::ServerText(frame));
+    }
+}
+
 impl WsClient {
     fn handle_text(&mut self, raw: String, ctx: &mut ws::WebsocketContext<Self>) {
         use crate::message::{to_client_event, ClientEvent, Incoming};
@@ -107,10 +129,31 @@ impl WsClient {
                     proof,
                     public_inputs,
                 }) => {
-                    self.room
-                        .lock()
-                        .unwrap()
-                        .night_action(self.id.clone(), action, target);
+                    let room = self.room.clone();
+                    let me_id = self.id.clone();
+
+                    // Heavy ZK proof check offloaded to a thread pool
+                    task::spawn_blocking(move || {
+                        match verify_card_message(&public_inputs, &proof) {
+                            Ok(true) => {
+                                println!("✔ nightAction proof valid for {me_id}");
+                                room.lock().unwrap().night_action_verified(
+                                    me_id.clone(),
+                                    action,
+                                    target,
+                                );
+                                send_night_ack(&room, &me_id, true, "");
+                            }
+                            Ok(false) => {
+                                eprintln!("✘ invalid nightAction proof from {me_id}");
+                                send_night_ack(&room, &me_id, false, "invalid proof");
+                            }
+                            Err(e) => {
+                                eprintln!("verify_card_message failed for {me_id}: {e:#}");
+                                send_night_ack(&room, &me_id, false, "verifier error");
+                            }
+                        }
+                    });
                 }
                 Ok(ClientEvent::Vote { target }) => {
                     self.room.lock().unwrap().vote(self.id.clone(), target);
