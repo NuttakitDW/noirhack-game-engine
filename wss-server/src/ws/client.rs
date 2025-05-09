@@ -102,7 +102,12 @@ impl WsClient {
                 Ok(ClientEvent::Ready(flag)) => {
                     self.room.lock().unwrap().set_ready(self.id.clone(), flag);
                 }
-                Ok(ClientEvent::NightAction { action, target }) => {
+                Ok(ClientEvent::NightAction {
+                    action,
+                    target,
+                    proof,
+                    public_inputs,
+                }) => {
                     self.room
                         .lock()
                         .unwrap()
