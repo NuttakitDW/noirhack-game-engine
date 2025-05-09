@@ -113,7 +113,7 @@ public class ActionManager : MonoBehaviour
 
     void DoPeek()
     {
-        if (NetworkManager.PlayerState.Role != "Seer")
+        if (NetworkManager.PlayerState.Role != "SEER")
         {
             StartCoroutine(ShowToast("You are not the Seer"));
             return;
@@ -125,7 +125,7 @@ public class ActionManager : MonoBehaviour
 
     void DoKill()
     {
-        if (NetworkManager.PlayerState.Role != "Werewolf")
+        if (NetworkManager.PlayerState.Role != "WEREWOLF")
         {
             StartCoroutine(ShowToast("You are not the Werewolf"));
             return;
