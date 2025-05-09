@@ -206,6 +206,7 @@ public class ActionManager : MonoBehaviour
             }
         };
         string json = JsonConvert.SerializeObject(bodyObj);
+        Debug.Log($"Prove JSON: {json}");
 
         // ----- POST /prove ---------------------------------------------
         using var www = new UnityWebRequest("http://localhost:3000/prove", "POST")
