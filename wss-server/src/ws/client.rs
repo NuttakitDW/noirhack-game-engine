@@ -63,7 +63,8 @@ fn send_partial_ready(room: &Room, requester: &PlayerId, partial: &[String; 2], 
         "arguments": [{
         "card":  room.decrypt_ctx[requester].card_index,
         "partial":  partial,
-        "component": component
+        "component": component,
+        "components": room.decrypt_ctx[requester].components
         }]
         })
         .to_string();
