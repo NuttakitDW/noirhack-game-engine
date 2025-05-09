@@ -20,6 +20,8 @@ xattr -rd com.apple.quarantine "/Users/your-machine-name/Downloads/Noir WereWolf
 
 ## Part 2: Run the WebSocket Server
 
+#### 1 Clone the Repository
+
 ```bash
 git clone https://github.com/NuttakitDW/noirhack-game-engine.git
 ```
@@ -33,6 +35,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 #### 3. Start server
+
+```bash
+cd wss-server
+```
 
 ```bash
 cargo run --bin wss-server
