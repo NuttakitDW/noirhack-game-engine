@@ -342,6 +342,72 @@ public class NetworkManager : MonoBehaviour
                     StartCoroutine(DoPartialDecrypt(p));
                     break;
                 }
+            case "partialReady":
+                {
+                    // Strong-typed parse of the frame
+                    var prEnv = JsonConvert.DeserializeObject<
+                        IncomingFrame<PartialReadyPayload>>(json);
+                    var p = prEnv?.arguments?[0];
+                    if (p == null)
+                    {
+                        Debug.LogWarning("partialReady frame missing payload");
+                        break;
+                    }
+
+                    // 1) Cache the cipher (["cx","cy"]) for the final decrypt
+                    PlayerState.PendingCipher = p.partial;
+
+                    // 2) Stash the decrypt component for completeness / auditing
+                    PlayerState.DecryptComponents.Add(p.component);
+
+                    // 3) Log so we can confirm in the Console
+                    Debug.Log($"[Decrypt] partialReady – saved cipher (card {p.card})");
+
+                    break;
+                }
+            case "allPartsReady":
+                {
+                    // Parse (mainly for the 'card' field; optional)
+                    var arEnv = JsonConvert.DeserializeObject<
+                        IncomingFrame<AllPartsReadyPayload>>(json);
+                    int cardIdx = arEnv?.arguments?[0]?.card ?? -1;
+
+                    if (PlayerState.PendingCipher == null)
+                    {
+                        Debug.LogError("allPartsReady received but PendingCipher is null!");
+                        break;
+                    }
+
+                    // Kick off the last decrypt layer
+                    StartCoroutine(DoFinalDecrypt(PlayerState.PendingCipher, decrypted =>
+                    {
+                        string hex = decrypted[1];                    // e.g. "0x01"
+                        if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                            hex = hex[2..];                           // drop "0x"
+
+                        if (!byte.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                                           null, out byte code))
+                        {
+                            Debug.LogError($"Could not parse rôle byte: {decrypted[1]}");
+                            return;                                   // abort gracefully
+                        }
+
+                        string roleText = RoleLookup.TryGetValue(code, out var name)
+                      ? name
+                      : $"UNKNOWN({code:X2})";
+
+                        // ───── 3. Store, log, broadcast ─────
+                        PlayerState.Role = roleText;
+
+                        Debug.Log($"🂠 FINAL ROLE for card {cardIdx} → {roleText}");
+
+                        OnRole?.Invoke(roleText);
+                    }));
+
+                    // Clear the stash to avoid accidental reuse
+                    PlayerState.PendingCipher = null;
+                    break;
+                }
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
@@ -459,11 +525,22 @@ public class NetworkManager : MonoBehaviour
         public static int? MyCardIndex;
         public static readonly HashSet<int> TakenIndices = new();
         public static readonly List<string> DecryptComponents = new();
+        public static string[] PendingCipher;
+
     }
     public static string LastWinner { get; private set; }
 
+    static readonly Dictionary<byte, string> RoleLookup = new()
+    {
+        { 0x00, "WOLF"      },
+        { 0x01, "SEER"      },
+        { 0x02, "VILLAGER"  },
+    };
+
+
     /*───────────────────────── Events ────────────────────────────*/
     public static Action OnRoomUpdate;
+    public static event Action<StartShufflePayload> OnStartShuffle;
     public static Action<string, int> OnPhaseChange;
     public static Action<string> OnRole;
     public static Action<string, string> OnPeekResult;
@@ -471,7 +548,7 @@ public class NetworkManager : MonoBehaviour
     public static Action<string> OnDayEnd;
     public static Action<string, Dictionary<string, string>> OnGameOver;
     public static Action<string> OnNightEnd;
-    public static event Action<StartShufflePayload> OnStartShuffle;
+    public static string[] PendingCipher;
 
     /*───────────────────────── DTOs / envelopes ─────────────────*/
     [Serializable] class HubMessage<T> { public int type = 1; public string target; public T[] arguments; }
@@ -646,5 +723,19 @@ public class NetworkManager : MonoBehaviour
         public int type = 1;
         public string target = "decryptCard";
         public DecryptCardArg[] arguments;
+    }
+
+    [Serializable]
+    class PartialReadyPayload
+    {
+        public int card;            // index 0-3 (handy for logging)
+        public string[] partial;    // 2-element cipher after helpers finished
+        public string component;    // helper’s decrypt component cᵢ
+    }
+
+    [Serializable]
+    class AllPartsReadyPayload
+    {
+        public int card;            // only used for logging / UI (optional)
     }
 }
