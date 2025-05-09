@@ -27,6 +27,62 @@ public class NetworkManager : MonoBehaviour
 
     /*───────────────────────── Connect / join ────────────────────*/
     string myName;
+
+    IEnumerator DoFinalDecrypt(string[] cipher, Action<string[]> onDone = null)
+    {
+        // 1) build request body
+        string mySk = KeyPairStore.Instance.GetSecretKey();
+
+        var bodyObj = new
+        {
+            circuit_name = "decryptOneLayer",
+            data = new
+            {
+                g = "3",
+                card = cipher,   // ["123456789", "987654321"]
+                sk = mySk
+            }
+        };
+        string bodyJson = JsonConvert.SerializeObject(bodyObj);
+        Debug.Log("[Decrypt] /execute body: " + bodyJson);
+
+        // 2) POST to http://localhost:3000/execute
+        using var www = new UnityEngine.Networking.UnityWebRequest(
+                           "http://localhost:3000/execute",
+                           UnityEngine.Networking.UnityWebRequest.kHttpVerbPOST)
+        {
+            uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(
+                                Encoding.UTF8.GetBytes(bodyJson)),
+            downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer()
+        };
+        www.SetRequestHeader("Content-Type", "application/json");
+        yield return www.SendWebRequest();
+
+        if (www.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+        {
+            Debug.LogError($"/execute decrypt failed: {www.error}");
+            yield break;
+        }
+
+        // 3) parse response
+        var resp = JsonConvert.DeserializeObject<DecryptOneLayerResp>(
+                       www.downloadHandler.text);
+        if (resp == null || !resp.ok)
+        {
+            Debug.LogError("/execute decrypt responded ok=false");
+            yield break;
+        }
+
+        string[] decrypted = resp.data.outputs.decryptedCard;   // [c1, message]
+        string comp = resp.data.outputs.decryptComponent;
+
+        // optional: stash the component in PlayerState
+        PlayerState.DecryptComponents.Add(comp);
+
+        Debug.Log($"[Decrypt] FINAL -> msg='{decrypted[1]}' comp='{comp}'");
+
+        onDone?.Invoke(decrypted);
+    }
     IEnumerator DoPartialDecrypt(NeedDecryptPayload p)
     {
         string mySk = KeyPairStore.Instance.GetSecretKey();
@@ -286,7 +342,6 @@ public class NetworkManager : MonoBehaviour
                     StartCoroutine(DoPartialDecrypt(p));
                     break;
                 }
-
             case "phase":
                 var pe = JsonUtility.FromJson<PhaseEnvelope>(json);
                 var pa = pe.arguments[0];
