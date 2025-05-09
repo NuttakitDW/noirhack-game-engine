@@ -25,6 +25,9 @@ pub struct Room {
     pub deck_state: Vec<[String; 2]>,
     pub taken_cards: HashMap<PlayerId, usize>,
     pub decrypt_ctx: HashMap<PlayerId, DecryptCtx>,
+    pub night_wolf_target: Option<String>,
+    pub night_seer_target: Option<String>,
+    pub night_done: bool,
 }
 
 pub struct DecryptCtx {
@@ -56,10 +59,20 @@ impl Room {
             ],
             taken_cards: HashMap::new(),
             decrypt_ctx: HashMap::new(),
+            night_wolf_target: None,
+            night_seer_target: None,
+            night_done: false,
         }
     }
     pub fn night_action_verified(&mut self, player: PlayerId, action: String, target: String) {
-        self.night_action(player, action, target);
+        match action.as_str() {
+            "wolfKill" => self.night_wolf_target = Some(target),
+            "seerPeek" => self.night_seer_target = Some(target),
+            _ => { /* villager or non-action → ignore */ }
+        }
+    }
+    pub fn night_ready(&self) -> bool {
+        self.night_wolf_target.is_some() && self.night_seer_target.is_some()
     }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
         // you can log here to debug:
@@ -195,8 +208,12 @@ impl Room {
         count
     }
 
-    fn resolve_night(&mut self) {
+    pub fn resolve_night(&mut self) {
         println!("Room::resolve_night pending={}", self.pending_night.len());
+        if self.night_done {
+            return;
+        }
+        self.night_done = true;
         let mut killed: Option<PlayerId> = None;
         for (action, target) in self.pending_night.values() {
             if action == "kill" {

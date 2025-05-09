@@ -138,11 +138,12 @@ impl WsClient {
                         match verify_card_message(&public_inputs, &proof) {
                             Ok(true) => {
                                 println!("✔ nightAction proof valid for {me_id}");
-                                room.lock().unwrap().night_action_verified(
-                                    me_id.clone(),
-                                    action,
-                                    target,
+
+                                let mut room_guard = room.lock().unwrap();
+                                println!(
+                                    "nightAction from {me_id} → action: {action}, target: {target}"
                                 );
+                                room_guard.night_action(me_id.clone(), action, target);
                                 send_night_ack(&room, &me_id, true, "");
                             }
                             Ok(false) => {
