@@ -296,7 +296,7 @@ impl WsClient {
                             "arguments":[{ "status":"denied", "card": card }]
                         })
                         .to_string();
-                        ctx.text(deny);
+                        ctx.text(deny); // ← sent only to the player who picked
                     } else {
                         room.taken_cards.insert(self.id.clone(), card);
 
@@ -307,10 +307,10 @@ impl WsClient {
                         })
                         .to_string();
 
-                        ctx.text(ok.clone());
-                        for p in room.players.values().filter_map(|pl| pl.addr.as_ref()) {
-                            p.do_send(crate::ws::client::ServerText(ok.clone()));
-                        }
+                        ctx.text(ok); // ← send only to this client, no more broadcast
+
+                        // (no for-loop broadcast here)
+
                         if room.taken_cards.len() == 4 {
                             println!("All cards claimed – setting up decrypt queues");
 
