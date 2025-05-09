@@ -180,9 +180,11 @@ public class ActionManager : MonoBehaviour
     IEnumerator ProveAndSend(string action)
     {
         Debug.Log($"ProveAndSend: {action} to {targetId}");
-        if (NetworkManager.PlayerState.MyCardIndex is not int idx)
+        var cardIdx = NetworkManager.PlayerState.MyCardIndex;
+        if (cardIdx == null)
         {
-            Debug.LogError("Prove: MyCardIndex is null"); yield break;
+            Debug.LogError("MyCardIndex is null");
+            yield break;
         }
 
         int realCompCount = NetworkManager.PlayerState.DecryptComponents.Count;
@@ -213,7 +215,7 @@ public class ActionManager : MonoBehaviour
             {
                 deck = deckPadded,
                 deck_size = "4",
-                card = NetworkManager.PlayerState.EncryptedDeck[idx],
+                card = NetworkManager.PlayerState.EncryptedDeck[cardIdx.Value],
                 decrypt_components = decryptComponentsPadded,
                 num_decrypt_components = realCompCount.ToString(),
                 expected_messages = expected,
