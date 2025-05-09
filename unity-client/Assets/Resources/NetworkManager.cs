@@ -480,6 +480,13 @@ public class NetworkManager : MonoBehaviour
                     OnDayEnd?.Invoke(lynchedId);
                     break;
                 }
+            case "nightAck":
+                {
+                    var envAck = JsonUtility.FromJson<NightAckEnvelope>(json);
+                    var arg = envAck.arguments[0];
+                    ActionManagerEvents.OnNightAck?.Invoke(arg.status, arg.reason);
+                    break;
+                }
             case "gameOver":
                 {
                     Debug.Log($"WS ← {json}");
@@ -766,6 +773,19 @@ public class NetworkManager : MonoBehaviour
     class AllPartsReadyPayload
     {
         public int card;            // only used for logging / UI (optional)
+    }
+    [Serializable]
+    class NightAckEnvelope
+    {
+        public int type;
+        public string target;
+        public NightAckArg[] arguments;
+    }
+    [Serializable]
+    class NightAckArg
+    {
+        public string status;   // "ok" or "rejected"
+        public string reason;   // empty if ok
     }
 }
 
