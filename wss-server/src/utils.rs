@@ -1,5 +1,6 @@
 use crate::room::room::Room;
 use crate::types::PlayerId;
+use anyhow::Result;
 use serde::Deserialize;
 use serde_json::json;
 use ureq;
@@ -87,4 +88,13 @@ pub fn verify_shuffle(
     // Parse the JSON response
     let v: VerifyResponse = serde_json::from_str(&body)?;
     Ok(v.ok)
+}
+
+pub fn verify_card_message(public_inputs: &[String], proof: &str) -> Result<bool> {
+    println!(
+        "(stub) verify_card_message called: inputs {}  proof_len {}",
+        public_inputs.len(),
+        proof.len()
+    );
+    Ok(true)
 }

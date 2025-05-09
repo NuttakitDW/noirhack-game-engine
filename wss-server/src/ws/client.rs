@@ -1,5 +1,4 @@
-use crate::utils::aggregate_public_keys;
-use crate::utils::verify_shuffle;
+use crate::utils::{aggregate_public_keys, verify_card_message, verify_shuffle};
 use crate::{
     room::room::{DecryptCtx, Room, SharedRoom},
     types::PlayerId,
