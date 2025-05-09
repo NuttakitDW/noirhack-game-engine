@@ -76,7 +76,6 @@ public class NetworkManager : MonoBehaviour
         string[] decrypted = resp.data.outputs.decryptedCard;   // [c1, message]
         string comp = resp.data.outputs.decryptComponent;
 
-        // optional: stash the component in PlayerState
         PlayerState.DecryptComponents.Add(comp);
 
         Debug.Log($"[Decrypt] FINAL -> msg='{decrypted[1]}' comp='{comp}'");
@@ -127,8 +126,6 @@ public class NetworkManager : MonoBehaviour
 
         string[] partial = resp.data.outputs.decryptedCard;
         string comp = resp.data.outputs.decryptComponent;
-
-        PlayerState.DecryptComponents.Add(comp);
 
         var frame = new DecryptCardFrame
         {
