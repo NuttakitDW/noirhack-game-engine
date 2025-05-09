@@ -109,6 +109,7 @@ impl Room {
         } else {
             println!("Room::set_ready unknown id={}", id);
         }
+        self.try_start()
     }
 
     pub fn try_start(&mut self) {
