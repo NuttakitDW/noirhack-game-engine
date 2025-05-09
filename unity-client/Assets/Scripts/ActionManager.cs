@@ -179,15 +179,31 @@ public class ActionManager : MonoBehaviour
     }
     IEnumerator ProveAndSend(string action)
     {
-        // ----- sanity ---------------------------------------------------
+        Debug.Log($"ProveAndSend: {action} to {targetId}");
         if (NetworkManager.PlayerState.MyCardIndex is not int idx)
         {
             Debug.LogError("Prove: MyCardIndex is null"); yield break;
         }
 
-        // ----- expected_messages[0] = 0x00 or 0x01 ----------------------
+        int realCompCount = NetworkManager.PlayerState.DecryptComponents.Count;
+
+        var decryptComponentsPadded = new List<string>(
+                NetworkManager.PlayerState.DecryptComponents);
+
+        // fill up to 10 entries with "1"
+        while (decryptComponentsPadded.Count < 10)
+            decryptComponentsPadded.Add("1");
+
+
         var expected = new List<string>(new string[10]);
+        for (int i = 0; i < 10; i++) expected.Add("0");
         expected[0] = RoleToMessageByte(NetworkManager.PlayerState.Role).ToString();
+
+        var deckPadded = new List<string[]>(NetworkManager.PlayerState.EncryptedDeck);
+
+        // fill up to 10 rows with ["0","0"]
+        while (deckPadded.Count < 10)
+            deckPadded.Add(new[] { "0", "0" });
 
         // ----- build JSON body -----------------------------------------
         var bodyObj = new
@@ -195,11 +211,11 @@ public class ActionManager : MonoBehaviour
             circuit_name = "verifyCardMessage",
             data = new
             {
-                deck = NetworkManager.PlayerState.EncryptedDeck,
+                deck = deckPadded,
                 deck_size = "4",
                 card = NetworkManager.PlayerState.EncryptedDeck[idx],
-                decrypt_components = NetworkManager.PlayerState.DecryptComponents,
-                num_decrypt_components = NetworkManager.PlayerState.DecryptComponents.Count.ToString(),
+                decrypt_components = decryptComponentsPadded,
+                num_decrypt_components = realCompCount.ToString(),
                 expected_messages = expected,
                 num_expected_messages = "1",
                 nullifier_secret = Random.Range(1, int.MaxValue).ToString()
