@@ -196,12 +196,12 @@ public class ActionManager : MonoBehaviour
 
 
         var expected = new List<string>(new string[10]);
-        for (int i = 0; i < 10; i++) expected.Add("0");
+        for (int i = 0; i < expected.Count; i++)
+            expected[i] = "0";
         expected[0] = RoleToMessageByte(NetworkManager.PlayerState.Role).ToString();
 
         var deckPadded = new List<string[]>(NetworkManager.PlayerState.EncryptedDeck);
 
-        // fill up to 10 rows with ["0","0"]
         while (deckPadded.Count < 10)
             deckPadded.Add(new[] { "0", "0" });
 
