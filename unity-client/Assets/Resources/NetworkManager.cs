@@ -207,6 +207,24 @@ public class NetworkManager : MonoBehaviour
         SendRaw(frame);
     }
 
+    public void SendNightActionProof(string action, string targetId,
+                                 string proof, string[] publicInputs)
+    {
+        var frame = new HubMessage<NightArgWithProof>
+        {
+            target = "nightAction",
+            arguments = new[] {
+            new NightArgWithProof {
+                action         = action,
+                target         = targetId,
+                proof          = proof,
+                public_inputs  = publicInputs
+            }
+        }
+        };
+        SendRaw(frame);
+    }
+
     public void SendVote(string targetId)
     {
         // we reuse our generic HubMessage<T> but T is string here
@@ -560,6 +578,12 @@ public class NetworkManager : MonoBehaviour
     [Serializable] class JoinArg { public string name; }
     [Serializable] class ReadyFrame { public int type = 1; public string target = "ready"; public bool[] arguments; public ReadyFrame(bool v) { arguments = new[] { v }; } }
     [Serializable] class NightArg { public string action; public string target; }
+    [Serializable]
+    class NightArgWithProof : NightArg
+    {
+        public string proof;
+        public string[] public_inputs;
+    }
 
     [Serializable] class LobbyEnvelope { public int type; public string target; public LobbyArgs[] arguments; }
     [Serializable] class LobbyArgs { public PlayerInfo[] players; }
@@ -744,3 +768,5 @@ public class NetworkManager : MonoBehaviour
         public int card;            // only used for logging / UI (optional)
     }
 }
+
+
