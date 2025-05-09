@@ -38,13 +38,30 @@ public class ActionManager : MonoBehaviour
 
         PlayerCardEvents.OnCardSelected += HandleSelect;
         NetworkManager.OnPhaseChange += HandlePhaseChange;
+        ActionManagerEvents.OnNightAck += HandleNightAck;
     }
 
     void OnDisable()
     {
         PlayerCardEvents.OnCardSelected -= HandleSelect;
         NetworkManager.OnPhaseChange -= HandlePhaseChange;
+        ActionManagerEvents.OnNightAck -= HandleNightAck;
     }
+    void HandleNightAck(string status, string reason)
+    {
+        if (status == "ok")
+        {
+            StartCoroutine(ShowToast("Action verified ✓"));
+        }
+        else
+        {
+            StartCoroutine(ShowToast($"Rejected: {reason}"));
+
+            // Optional: let the player try again
+            peekButton.interactable = killButton.interactable = true;
+        }
+    }
+
 
     void HandlePhaseChange(string phase, int round)
     {
@@ -233,4 +250,9 @@ class VerifyResp
         public string[] public_inputs;
         public string proof;
     }
+}
+
+public static class ActionManagerEvents
+{
+    public static System.Action<string, string> OnNightAck;
 }
