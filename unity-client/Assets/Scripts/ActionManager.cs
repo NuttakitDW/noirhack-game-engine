@@ -51,7 +51,7 @@ public class ActionManager : MonoBehaviour
     {
         if (status == "ok")
         {
-            StartCoroutine(ShowToast("Action verified ✓"));
+            StartCoroutine(ShowToast("Action verified"));
         }
         else
         {
