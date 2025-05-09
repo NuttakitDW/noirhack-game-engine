@@ -6,16 +6,17 @@ This project includes a downloadable game client, a WebSocket server, and an API
 
 ## 📁 Part 1: Download and Run the Game
 
-1. **Download the Game ZIP**  
+#### 1. Download the Game ZIP  
   [Download Game (.zip)](./Noir%20WereWolf.zip)
 
-2. **Extract the ZIP**  
-   Extract the ZIP file to a folder of your choice.
+#### 2. Extract the ZIP  
+  Extract the ZIP file to a folder of your choice.
 
-3. **Run the Game**  
-   Open the extracted folder and run the game executable (or follow instructions inside the folder).
-
----
+#### 3. Run the command
+  open your terminal and run the command
+```bash
+xattr -rd com.apple.quarantine "/Users/your-machine-name/Downloads/Noir WereWolf.app"
+```
 
 ## Part 2: Run the WebSocket Server
 
@@ -67,3 +68,57 @@ bun install
 ```bash
 bun start
 ```
+
+## Part 4: Set up game source
+
+To use WebSockets in your game, the server must be hosted on a public domain and served over HTTPS. For local development, we recommend using a tool like ngrok to expose your WebSocket server with a secure wss:// URL.
+
+#### 1. Install ngrok
+
+```bash
+bew install ngrok
+```
+
+#### 2. Signup ngrok
+
+https://dashboard.ngrok.com/get-started/setup/macos
+
+#### 3. Setup ngrok in your machine
+
+You can get your token from 
+https://dashboard.ngrok.com/get-started/your-authtoken
+
+```bash 
+ngrok config add-authtoken <<TOKEN>>
+```
+
+#### 4. Start ngrok server
+
+```bash
+ngrok http http://localhost:8080
+```
+
+Then we will get 
+
+```bash
+https://your-domain-name.ngrok-free.app
+```
+
+convert it to websocket server
+```bash
+wss//your-domain-name.ngrok-free.app/ws
+```
+
+## Final part
+
+after we config all of the server and game engine we will start the game
+
+![game](./game.png)
+
+#### 1. Add your player name
+
+#### 2. Add the websocket server from your ngrok
+
+#### 3. Let's play the game
+
+!!! Note all of players must to use same of websocket server
