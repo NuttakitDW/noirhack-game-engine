@@ -58,6 +58,9 @@ impl Room {
             decrypt_ctx: HashMap::new(),
         }
     }
+    pub fn night_action_verified(&mut self, player: PlayerId, action: String, target: String) {
+        self.night_action(player, action, target);
+    }
     pub fn register_public_key(&mut self, player_id: &PlayerId, pk: String) {
         // you can log here to debug:
         println!("Room::register_public_key id={} pk={}", player_id, pk);
