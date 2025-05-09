@@ -186,8 +186,6 @@ public class NetworkManager : MonoBehaviour
                 arguments = new[] { new JoinArg { name = playerName } }
             };
             SendRaw(joinFrame);
-            SendRaw(new ReadyFrame(true));
-
             // start our coroutine instead of immediate LoadScene
             StartCoroutine(FetchKeysThenEnterGame());
         };
@@ -402,6 +400,11 @@ public class NetworkManager : MonoBehaviour
                         Debug.Log($"🂠 FINAL ROLE for card {cardIdx} → {roleText}");
 
                         OnRole?.Invoke(roleText);
+                        if (!PlayerState.RoleReadySent)
+                        {
+                            SendRaw(new ReadyFrame(true));
+                            PlayerState.RoleReadySent = true;
+                        }
                     }));
 
                     // Clear the stash to avoid accidental reuse
@@ -512,6 +515,7 @@ public class NetworkManager : MonoBehaviour
     }
 
     /*───────────────────────── Shared state ─────────────────────*/
+
     public static class RoomState
     {
         public const int MIN_PLAYERS = 4;
@@ -526,6 +530,7 @@ public class NetworkManager : MonoBehaviour
         public static readonly HashSet<int> TakenIndices = new();
         public static readonly List<string> DecryptComponents = new();
         public static string[] PendingCipher;
+        public static bool RoleReadySent;
 
     }
     public static string LastWinner { get; private set; }
