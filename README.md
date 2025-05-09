@@ -8,7 +8,7 @@ This project includes a downloadable game client, a WebSocket server, and an API
 
 #### 1. Download the Game ZIP
 
-[Download Game (.zip)](./Noir%20Werewolf.zip)
+[Download Game (.zip)](https://github.com/NuttakitDW/noirhack-game-engine/blob/main/Noir%20Werewolf.zip)
 
 #### 2. Extract the ZIP
 
