@@ -121,7 +121,7 @@ wss://your-domain-name.ngrok-free.app/ws
 
 After configuring the server and game engine, you’re ready to start the game.
 
-![game](./game.png)
+![game](./screenshots/entry_game.png)
 
 #### 1. Enter your player name
 
